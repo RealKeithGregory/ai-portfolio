@@ -1,5 +1,7 @@
 # AI Engineering Portfolio & Technical Blog
 
+Live portfolio: <https://ai-portfolio-lth7txqmoq-uc.a.run.app>
+
 Personal site for Keith Gregory: building, evaluating, and documenting AI
 systems across RAG and retrieval, agents and tool use, guardrails, and
 observability, with a growing focus on financial AI. It has three jobs:
@@ -198,6 +200,7 @@ Google Cloud Run, from the `Dockerfile` in this repository.
 | | |
 |---|---|
 | Build | `gcloud run deploy --source .` (Cloud Build reads the Dockerfile) |
+| Region | `us-central1` |
 | Start | `uvicorn server:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'` |
 | Health check | `/` |
 | CPU / memory | 1 vCPU, 2 GiB (measured peak ~450 MB: PyTorch ~200 MB, model and app the rest) |
