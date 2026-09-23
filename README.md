@@ -222,6 +222,11 @@ after seeing the connection. A request forged with `X-Forwarded-For: 9.9.9.9`
 arrives as `9.9.9.9, <real address>`, so the forgery lands on the left and is
 ignored.
 
+IPv6 visitors are counted per **/64 network** rather than per address. A
+home connection is handed a whole /64 and its host bits rotate on their own
+(privacy extensions), so counting full addresses would hand one subscriber an
+unlimited supply of allowances. IPv4 is counted per address.
+
 `TRUSTED_PROXY_HOPS = 1` says one proxy in front of the app may be believed.
 That is true on Cloud Run, where nothing can reach the container except
 through Google's front end. Exposing this app's port directly would make the

@@ -305,9 +305,35 @@ def test_identity_rejects_a_value_that_is_not_an_address():
     assert security.client_identity(scope_with(["9.9.9.9, evil"])) == "10.0.0.1"
 
 
-def test_identity_handles_ipv6():
-    assert security.client_identity(scope_with(["2001:db8::1"])) == "2001:db8::1"
-    assert security.client_identity(scope_with(["[2001:db8::1]"])) == "[2001:db8::1]"
+def test_ipv6_is_counted_per_network_not_per_address():
+    """A visitor's IPv6 host bits rotate on their own, so counting the full
+    address would hand one subscriber an unlimited supply of allowances."""
+    first = security.client_identity(scope_with(["2001:db8:abcd:1234::1"]))
+    rotated = security.client_identity(scope_with(["2001:db8:abcd:1234:9999:8888:7777:6666"]))
+    bracketed = security.client_identity(scope_with(["[2001:db8:abcd:1234::abc]"]))
+    assert first == rotated == bracketed == "2001:db8:abcd:1234::/64"
+
+    other_network = security.client_identity(scope_with(["2001:db8:abcd:9999::1"]))
+    assert other_network != first
+
+
+def test_ipv4_is_counted_per_address():
+    assert security.client_identity(scope_with(["203.0.113.7"])) == "203.0.113.7"
+
+
+def test_rotating_inside_an_ipv6_prefix_does_not_reset_the_limit(client, monkeypatch):
+    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (2, 60))
+    server.api_limiter.reset()
+    for host in ["2001:db8:1:2::1", "2001:db8:1:2::2"]:
+        sent = client.post("/api/search", json={"query": "x"},
+                           headers={"X-Forwarded-For": host})
+        assert sent.status_code == 200
+    blocked = client.post("/api/search", json={"query": "x"},
+                          headers={"X-Forwarded-For": "2001:db8:1:2:aaaa:bbbb:cccc:dddd"})
+    assert blocked.status_code == 429, "rotating within the /64 bought another request"
+    elsewhere = client.post("/api/search", json={"query": "x"},
+                            headers={"X-Forwarded-For": "2001:db8:1:3::1"})
+    assert elsewhere.status_code == 200, "a different /64 must keep its own allowance"
 
 
 def test_cloud_run_expects_exactly_one_trusted_hop():

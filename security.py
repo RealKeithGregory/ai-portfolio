@@ -129,29 +129,44 @@ def _forwarded_entries(scope):
     return [entry.strip() for entry in entries if entry.strip()]
 
 
-def _is_address(value):
+# An IPv6 visitor is normally handed a whole /64 and can move freely inside
+# it: privacy extensions rotate the host bits on a schedule, without the
+# visitor doing anything. Keying on the full address would hand one visitor
+# effectively unlimited allowances, so IPv6 is counted per network prefix,
+# which is the part that identifies the subscriber. IPv4 is used as-is.
+IPV6_PREFIX_BITS = 64
+
+
+def _as_key(value):
+    """Normalise an address into a rate-limit key, or None if it is not one."""
     try:
-        ipaddress.ip_address(value.strip("[]"))
+        parsed = ipaddress.ip_address(value.strip("[]"))
     except ValueError:
-        return False
-    return True
+        return None
+    if parsed.version == 6:
+        network = ipaddress.ip_network(f"{parsed}/{IPV6_PREFIX_BITS}", strict=False)
+        return f"{network.network_address}/{IPV6_PREFIX_BITS}"
+    return str(parsed)
 
 
 def client_identity(scope, trusted_hops=TRUSTED_PROXY_HOPS):
-    """The address to rate limit, taken from the right of X-Forwarded-For.
+    """The rate-limit key, taken from the right of X-Forwarded-For.
+
+    IPv6 addresses are reduced to their /64 network, so a visitor cannot
+    multiply their allowance simply by rotating inside their own prefix.
 
     Falls back to the socket peer whenever the header is absent, shorter
     than the number of proxies we expect, or not an address -- all of which
     mean the request did not arrive the way production says it does.
     """
-    peer = scope["client"][0] if scope.get("client") else "unknown"
+    raw_peer = scope["client"][0] if scope.get("client") else "unknown"
+    peer = _as_key(raw_peer) or raw_peer
     if trusted_hops < 1:
         return peer
     entries = _forwarded_entries(scope)
     if len(entries) < trusted_hops:
         return peer
-    candidate = entries[-trusted_hops]
-    return candidate if _is_address(candidate) else peer
+    return _as_key(entries[-trusted_hops]) or peer
 
 
 # ─── API GUARDS ───────────────────────────────────────────────────────────────
