@@ -92,8 +92,8 @@ def test_search_requires_post(client):
     assert client.get("/api/search").status_code == 405
 
 
-def test_index_covers_content_and_blog(client, posts):
-    chunks = client.app.state.search_index.chunks
+def test_index_covers_content_and_blog(search_index, posts):
+    chunks = search_index.chunks
     sections = {c["section"] for c in chunks}
     assert "About" in sections and "Contact" in sections
     assert "Projects overview" in sections
@@ -106,10 +106,10 @@ def test_index_covers_content_and_blog(client, posts):
         assert f"Project: {project['name']}" in sections
 
 
-def test_index_is_built_only_from_approved_content(client, posts):
+def test_index_is_built_only_from_approved_content(search_index, posts):
     """Index source integrity: every chunk belongs to a declared category and
     points at a declared public URL. Anything else fails, whatever it is."""
-    chunks = client.app.state.search_index.chunks
+    chunks = search_index.chunks
     allowed = approved_urls(posts)
     for chunk in chunks:
         section = chunk["section"]
@@ -120,17 +120,15 @@ def test_index_is_built_only_from_approved_content(client, posts):
         assert chunk["url"] in allowed, f"unapproved index url: {chunk['url']}"
 
 
-def test_indexed_text_carries_no_dated_history(client):
+def test_indexed_text_carries_no_dated_history(search_index):
     """The published site presents no dated history, so none can be indexed."""
-    for chunk in client.app.state.search_index.chunks:
+    for chunk in search_index.chunks:
         assert DATE_RANGE.search(chunk["text"]) is None, chunk["section"]
 
 
-def test_focus_areas_remain_searchable(client):
+def test_focus_areas_remain_searchable(search_index):
     """They moved into the About chunk; they must still be findable."""
-    about = next(
-        c for c in client.app.state.search_index.chunks if c["section"] == "About"
-    )
+    about = next(c for c in search_index.chunks if c["section"] == "About")
     for area in content.PROFILE["ai_focus"]:
         assert area in about["text"], area
 

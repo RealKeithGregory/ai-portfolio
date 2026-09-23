@@ -12,7 +12,6 @@ embedded here is retrievable by any visitor.
 """
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 import content
 
@@ -133,13 +132,22 @@ def blog_chunks(posts):
 def load_model():
     """Load the pinned embedding model.
 
-    The weights are downloaded from the Hugging Face Hub on first use and
-    cached (~90 MB, under HF_HOME). In deployment that download happens once,
-    while the app starts, before it serves its first request.
+    In deployment the weights are already in the image, baked in at build
+    time under HF_HOME, and HF_HUB_OFFLINE=1 stops anything reaching for the
+    Hugging Face Hub at runtime. Running locally, the first call downloads
+    them (~87 MB) into the local cache instead.
 
     `trust_remote_code` stays False so that nothing from the model repository
     is ever executed as Python -- only weights and config are read.
+
+    sentence_transformers is imported here rather than at the top of the
+    module because importing it pulls in PyTorch, which is by far the most
+    expensive import in the process and the largest thing in the image. A
+    request for a portfolio page does not need any of it, so nothing loads
+    it until a search actually asks for it.
     """
+    from sentence_transformers import SentenceTransformer
+
     return SentenceTransformer(
         MODEL_NAME,
         revision=MODEL_REVISION,

@@ -23,6 +23,20 @@ def posts(client):
     return server.app.state.posts
 
 
+@pytest.fixture(scope="session")
+def search_index(client):
+    """The built index.
+
+    The index is built on the first search rather than at startup, so this
+    performs one real search to trigger it and then hands back the result.
+    Tests that inspect the corpus use this instead of reaching into app
+    state, which now holds the lazy wrapper rather than the index itself."""
+    assert client.post("/api/search", json={"query": "warm up"}).status_code == 200
+    holder = server.app.state.search_index
+    assert holder.ready
+    return holder._index
+
+
 @pytest.fixture(autouse=True)
 def fresh_rate_limits():
     """Clear the API rate-limit counters before each test.
