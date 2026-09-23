@@ -14,6 +14,7 @@ stay modest; running more than one instance would need a shared store, and
 each instance would otherwise enforce its own separate allowance.
 """
 
+import ipaddress
 import time
 from collections import OrderedDict, deque
 
@@ -97,6 +98,60 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+# ─── CLIENT IDENTITY ──────────────────────────────────────────────────────────
+# Which address the rate limiter counts against.
+#
+# X-Forwarded-For is a list that every proxy appends to, so the entries a
+# visitor can write sit on the LEFT and the entry the platform's front end
+# added sits on the RIGHT. A request forged with "X-Forwarded-For: 9.9.9.9"
+# reaches this app as "9.9.9.9, <the address the front end actually saw>".
+# Counting from the right is therefore the only position a visitor cannot
+# choose, and the only one a rate limit can be keyed on.
+#
+# This is also why uvicorn's --proxy-headers is not used. With
+# --forwarded-allow-ips='*' it rewrites the client address from the
+# left-most entry, which is exactly the spoofable one.
+#
+# TRUSTED_PROXY_HOPS is how many proxies in front of this app may be
+# believed. On Cloud Run that is one: Google's front end. With no proxy at
+# all (local development) there is no header and the socket peer is used.
+TRUSTED_PROXY_HOPS = 1
+
+
+def _forwarded_entries(scope):
+    """Every X-Forwarded-For value, in the order the proxies appended them."""
+    entries = []
+    for name, value in scope.get("headers", []):
+        if name == b"x-forwarded-for":
+            entries += value.decode("latin1").split(",")
+    return [entry.strip() for entry in entries if entry.strip()]
+
+
+def _is_address(value):
+    try:
+        ipaddress.ip_address(value.strip("[]"))
+    except ValueError:
+        return False
+    return True
+
+
+def client_identity(scope, trusted_hops=TRUSTED_PROXY_HOPS):
+    """The address to rate limit, taken from the right of X-Forwarded-For.
+
+    Falls back to the socket peer whenever the header is absent, shorter
+    than the number of proxies we expect, or not an address -- all of which
+    mean the request did not arrive the way production says it does.
+    """
+    peer = scope["client"][0] if scope.get("client") else "unknown"
+    if trusted_hops < 1:
+        return peer
+    entries = _forwarded_entries(scope)
+    if len(entries) < trusted_hops:
+        return peer
+    candidate = entries[-trusted_hops]
+    return candidate if _is_address(candidate) else peer
 
 
 # ─── API GUARDS ───────────────────────────────────────────────────────────────
@@ -198,8 +253,7 @@ class ApiGuardMiddleware:
             )
             return
 
-        client = scope["client"][0] if scope.get("client") else "unknown"
-        wait = self.limiter.retry_after(scope["path"], client)
+        wait = self.limiter.retry_after(scope["path"], client_identity(scope))
         if wait is not None:
             await self._reject(
                 scope, receive, send, 429,

@@ -211,10 +211,22 @@ default PyPI wheel brings roughly 2 GB of CUDA libraries that a CPU instance
 cannot use. CI installs the same CPU wheel, so tests run against what
 production runs.
 
-`--proxy-headers --forwarded-allow-ips='*'` tells uvicorn to take the client
-IP from `X-Forwarded-For`, which the rate limiter needs. Trusting that header
-from any source is safe here only because Google's front end is the sole
-route to the container: nothing else can reach the port.
+### Which client address is trusted
+
+The rate limiter keys on an address, so which address matters. uvicorn's
+`--proxy-headers` is deliberately **not** used: with `--forwarded-allow-ips='*'`
+it takes the **left-most** `X-Forwarded-For` entry, and that is the one a
+visitor writes. `security.client_identity()` reads the header itself and
+takes the **right-most** entry instead -- the one Google's front end appended
+after seeing the connection. A request forged with `X-Forwarded-For: 9.9.9.9`
+arrives as `9.9.9.9, <real address>`, so the forgery lands on the left and is
+ignored.
+
+`TRUSTED_PROXY_HOPS = 1` says one proxy in front of the app may be believed.
+That is true on Cloud Run, where nothing can reach the container except
+through Google's front end. Exposing this app's port directly would make the
+header forgeable again, so the assumption is pinned by a test rather than
+left in a comment. With no header at all, the socket peer is used.
 
 ## Philosophy
 

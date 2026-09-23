@@ -47,7 +47,9 @@ EXPOSE 8080
 # which is what lets Cloud Run's SIGTERM shut uvicorn down cleanly. The shell
 # is only there to expand $PORT.
 #
-# --proxy-headers takes the client IP from X-Forwarded-For, which the rate
-# limiter needs. Trusting that header from any source is safe here only
-# because Google's front end is the sole route to this port.
-CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips='*'"]
+# Deliberately no --proxy-headers. With --forwarded-allow-ips='*' uvicorn
+# rewrites the client address from the LEFT-most X-Forwarded-For entry,
+# which any visitor can set. security.client_identity() reads the header
+# itself and takes the right-most entry instead -- the one Google's front
+# end appended. See TRUSTED_PROXY_HOPS in security.py.
+CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]

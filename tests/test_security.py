@@ -256,3 +256,114 @@ def test_bodies_within_the_limit_are_still_validated_normally(client, path, fiel
     """Between the 500-character field limit and the body limit, the field
     validator is what rejects the request -- with a 422, not a 413."""
     assert client.post(path, json={field: "x" * 501}).status_code == 422
+
+
+# ─── CLIENT IDENTITY BEHIND A PROXY ───────────────────────────────────────────
+# The rate limiter is only as good as the address it counts against. These
+# tests pin down which X-Forwarded-For position is trusted, because trusting
+# the wrong one lets any visitor reset their own allowance at will.
+def scope_with(forwarded=None, peer="10.0.0.1"):
+    headers = []
+    for value in [] if forwarded is None else forwarded:
+        headers.append((b"x-forwarded-for", value.encode()))
+    return {"type": "http", "headers": headers, "client": (peer, 1234)}
+
+
+def test_client_identity_is_the_address_the_front_end_appended():
+    """One proxy in front: the right-most entry is the real client."""
+    assert security.client_identity(scope_with(["203.0.113.7"])) == "203.0.113.7"
+
+
+def test_forged_forwarded_header_cannot_choose_the_identity():
+    """A visitor sending their own X-Forwarded-For has it appended to, not
+    replaced, so the forged values land on the left and are ignored."""
+    forged = scope_with(["9.9.9.9, 203.0.113.7"])
+    assert security.client_identity(forged) == "203.0.113.7"
+
+    many = scope_with(["1.1.1.1, 2.2.2.2, 3.3.3.3, 203.0.113.7"])
+    assert security.client_identity(many) == "203.0.113.7"
+
+
+def test_forged_header_split_across_several_headers_is_still_ignored():
+    """Proxies may merge repeated headers or leave them separate."""
+    split = scope_with(["9.9.9.9", "8.8.8.8, 203.0.113.7"])
+    assert security.client_identity(split) == "203.0.113.7"
+
+
+def test_identity_falls_back_to_the_socket_peer():
+    """No header (local development), an empty one, or one too short to
+    contain the hop we expect: none of these is a client address."""
+    assert security.client_identity(scope_with(None)) == "10.0.0.1"
+    assert security.client_identity(scope_with([""])) == "10.0.0.1"
+    assert security.client_identity(scope_with([" , "])) == "10.0.0.1"
+    assert security.client_identity(scope_with(["1.1.1.1"]), trusted_hops=2) == "10.0.0.1"
+
+
+def test_identity_rejects_a_value_that_is_not_an_address():
+    """Otherwise the key space is whatever a visitor decides to type."""
+    assert security.client_identity(scope_with(["not-an-ip"])) == "10.0.0.1"
+    assert security.client_identity(scope_with(["9.9.9.9, evil"])) == "10.0.0.1"
+
+
+def test_identity_handles_ipv6():
+    assert security.client_identity(scope_with(["2001:db8::1"])) == "2001:db8::1"
+    assert security.client_identity(scope_with(["[2001:db8::1]"])) == "[2001:db8::1]"
+
+
+def test_cloud_run_expects_exactly_one_trusted_hop():
+    """Google's front end is the only proxy in front of this service."""
+    assert security.TRUSTED_PROXY_HOPS == 1
+
+
+# In production the front end appends the address it saw, so a visitor at
+# 203.0.113.7 who sends nothing arrives as "203.0.113.7", and one who sends
+# a forged header arrives as "<forged>, 203.0.113.7". These helpers build
+# both shapes so the test exercises what Cloud Run actually delivers.
+VISITOR = "203.0.113.7"
+
+
+def as_cloud_run(forged=None):
+    value = VISITOR if forged is None else f"{forged}, {VISITOR}"
+    return {"X-Forwarded-For": value}
+
+
+def test_spoofed_header_cannot_bypass_the_rate_limit(client, monkeypatch):
+    """The whole point: rotating X-Forwarded-For must not buy more requests."""
+    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (2, 60))
+    server.api_limiter.reset()
+    for _ in range(2):
+        sent = client.post("/api/search", json={"query": "x"}, headers=as_cloud_run())
+        assert sent.status_code == 200
+
+    for forged in ["9.9.9.9", "1.2.3.4", "203.0.113.99, 8.8.8.8", "not-an-ip"]:
+        blocked = client.post(
+            "/api/search", json={"query": "x"}, headers=as_cloud_run(forged)
+        )
+        assert blocked.status_code == 429, f"{forged!r} bought another request"
+
+
+def test_a_different_visitor_still_gets_their_own_allowance(client, monkeypatch):
+    """Keying on the appended entry must not collapse everyone into one
+    bucket -- that would rate limit the whole internet together."""
+    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
+    server.api_limiter.reset()
+    first = client.post("/api/search", json={"query": "x"}, headers=as_cloud_run())
+    assert first.status_code == 200
+    assert client.post(
+        "/api/search", json={"query": "x"}, headers=as_cloud_run()
+    ).status_code == 429
+
+    other = client.post(
+        "/api/search", json={"query": "x"}, headers={"X-Forwarded-For": "198.51.100.4"}
+    )
+    assert other.status_code == 200
+
+
+def test_the_trust_assumption_is_the_deployment_topology():
+    """With one trusted hop, a lone entry IS believed. That is correct only
+    because nothing can reach the container except through Google's front
+    end, which always appends. Run this app with its port exposed directly
+    and the header becomes forgeable again -- so this is pinned as a test,
+    not left as a comment."""
+    assert security.client_identity(scope_with(["9.9.9.9"])) == "9.9.9.9"
+    assert security.client_identity(scope_with(["9.9.9.9"]), trusted_hops=0) == "10.0.0.1"
