@@ -7,6 +7,7 @@ Run locally:  uvicorn server:app --reload --reload-include '*.md' --reload-inclu
 import asyncio
 import logging
 import re
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -29,7 +30,16 @@ import security
 BASE_DIR = Path(__file__).parent
 RECENT_POSTS_ON_HOME = 3
 
+# uvicorn configures its own loggers but not this one, and the root logger
+# defaults to WARNING -- which silently swallowed the index-build messages
+# below. They are the only record of when the model loaded and how long it
+# took, so the level is set explicitly rather than left to chance.
 log = logging.getLogger("portfolio")
+log.setLevel(logging.INFO)
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    log.addHandler(_handler)
 
 
 class LazySearchIndex:
@@ -72,8 +82,13 @@ class LazySearchIndex:
             # was waiting for the lock.
             if self._index is None:
                 log.info("Building search index (first search on this instance)")
+                started = time.perf_counter()
                 self._index = await anyio.to_thread.run_sync(self._build)
-                log.info("Embedded %d searchable chunks.", len(self._index.chunks))
+                log.info(
+                    "Embedded %d searchable chunks in %.2fs.",
+                    len(self._index.chunks),
+                    time.perf_counter() - started,
+                )
             return self._index
 
 
