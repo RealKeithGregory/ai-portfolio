@@ -15,7 +15,7 @@
 
 # Web application
 fastapi==0.135.1
-starlette==0.52.1
+starlette==1.6.0
 pydantic==2.12.5
 uvicorn[standard]==0.41.0
 
