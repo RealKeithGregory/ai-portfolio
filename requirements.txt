@@ -28,8 +28,8 @@ pyyaml==6.0.3
 # Semantic search. torch, transformers and huggingface_hub are pulled in by
 # sentence-transformers, but they are pinned here too because they decide
 # how the model is fetched and loaded -- see MODEL_REVISION in search.py.
-sentence-transformers==5.3.0
-transformers==5.3.0
+sentence-transformers==6.1.0
+transformers==5.17.0
 huggingface_hub==1.7.1
-torch==2.10.0
-numpy==2.4.3
+torch==2.14.0
+numpy==2.5.3
