@@ -20,7 +20,7 @@ jobs:
       # between runs so the test job stays fast. The key carries the pinned
       # revision from search.py, so changing the pin fetches the new weights.
       - name: Cache sentence-transformers model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/huggingface
           key: hf-all-MiniLM-L6-v2-1110a243fdf4706b3f48f1d95db1a4f5529b4d41
