@@ -14,7 +14,7 @@
 # Install dev/test tools with requirements-dev.txt.
 
 # Web application
-fastapi==0.135.1
+fastapi==0.141.1
 starlette==0.52.1
 pydantic==2.12.5
 uvicorn[standard]==0.41.0
