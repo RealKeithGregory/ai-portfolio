@@ -2,28 +2,32 @@
 #
 # This file must exist. Without it gcloud generates one from .gitignore,
 # which does not cover the private directories kept in .git/info/exclude,
-# and they would be uploaded. It mirrors .dockerignore, plus the build
-# instructions themselves, which Cloud Build needs and the image does not.
+# and they would be uploaded.
 #
 # Default-deny: nothing is uploaded unless it is named here. That way a new
 # private file alongside this repository is never sent by accident, and no
 # private path has to be named in this public file.
-*
+#
+# The rules use .gitignore syntax, which is not the syntax .dockerignore
+# uses: here `*` would match at every depth, so the exclusion is anchored to
+# the top level with `/*`. Without the anchor, re-including `templates/`
+# would still leave every file inside it excluded.
+/*
 
 # The application
-!server.py
-!config.py
-!security.py
-!content.py
-!blog.py
-!search.py
+!/server.py
+!/config.py
+!/security.py
+!/content.py
+!/blog.py
+!/search.py
 
 # Dependencies, templates, static assets, and the articles
-!requirements.txt
-!templates/
-!public/
-!content/
+!/requirements.txt
+!/templates/
+!/public/
+!/content/
 
-# Build instructions
-!Dockerfile
-!.dockerignore
+# Build instructions. Cloud Build needs these; the image does not.
+!/Dockerfile
+!/.dockerignore
