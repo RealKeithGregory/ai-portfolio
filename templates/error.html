@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Error {{ status_code }} · {{ profile.name }}{% endblock %}
+{% block content %}
+<section class="error-page">
+  <div class="container">
+    <div class="section-tag">{{ status_code }}</div>
+    <h1 class="section-title">Something went wrong</h1>
+    <p class="section-sub">{{ detail }}</p>
+    <div class="hero-ctas">
+      <a href="/" class="btn-primary">← Portfolio</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

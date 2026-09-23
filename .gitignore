@@ -1,0 +1,19 @@
+# Secrets — never commit real environment values.
+.env
+
+# Dependencies and virtual environments
+node_modules/
+venv/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and OS cruft
+*.log
+.DS_Store

@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% set active = 'home' %}
+{% set centered_page = true %}
+
+{% block content %}
+<!-- HERO -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-inner">
+      <div class="hero-content fade-up">
+        <div class="hero-label">AI Engineering Portfolio</div>
+        <h1 class="hero-name">
+          Keith<br>
+          <span class="highlight">Gregory</span>
+        </h1>
+        <p class="hero-headline">{{ profile.headline }}</p>
+        <p class="hero-role">// {{ profile.tagline }}</p>
+        <p class="hero-bio">{{ profile.summary | emphasize }}</p>
+        <div class="hero-ctas">
+          <a href="#projects" class="btn-primary">▶ View Projects</a>
+          <a href="/blog" class="btn-outline">Read the Blog</a>
+        </div>
+        <ul class="hero-workflow" aria-label="Working method">
+          {% for step in profile.workflow %}<li>{{ step }}</li>{% endfor %}
+        </ul>
+      </div>
+
+      <!-- Terminal Card -->
+      <div class="hero-terminal fade-up" style="transition-delay:0.2s" aria-hidden="true">
+        <div class="terminal-bar">
+          <div class="dot r"></div>
+          <div class="dot y"></div>
+          <div class="dot g"></div>
+          <span class="terminal-title">engineer.json</span>
+        </div>
+        <div class="terminal-body">
+          <div><span class="t-brace">{</span></div>
+          <div>&nbsp;&nbsp;<span class="t-key">"name"</span>: <span class="t-str">"{{ profile.name }}"</span>,</div>
+          <div>&nbsp;&nbsp;<span class="t-key">"building"</span>: <span class="t-str">"reliable AI systems"</span>,</div>
+          <div>&nbsp;&nbsp;<span class="t-key">"focus"</span>: <span class="t-brace">[</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-str">"AI evaluation &amp; reliability"</span>,</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-str">"RAG &amp; retrieval"</span>,</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-str">"agents &amp; tool calling"</span>,</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-str">"guardrails &amp; observability"</span></div>
+          <div>&nbsp;&nbsp;<span class="t-brace">]</span>,</div>
+          <div>&nbsp;&nbsp;<span class="t-key">"workflow"</span>: <span class="t-str">"learn → build → evaluate → document → improve"</span>,</div>
+          <div>&nbsp;&nbsp;<span class="t-key">"evidence"</span>: <span class="t-str">"projects · blog · github"</span></div>
+          <div><span class="t-brace">}</span> <span class="t-cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROJECTS -->
+<section id="projects">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">01 · Work</div>
+      <h2 class="section-title">AI systems as case studies</h2>
+      <p class="section-sub">Each project records the problem, the architecture, how it was evaluated, where it failed, and what the evidence showed. Planned projects list the questions they must answer before they count as done.</p>
+    </div>
+
+    {% for key, heading, blurb in project_categories %}
+    <div class="project-group">
+      <h3 class="project-group-title fade-up">{{ heading }}</h3>
+      <p class="project-group-sub fade-up">{{ blurb }}</p>
+
+      <div class="projects-grid">
+        {% for project in projects_in_category(key) %}
+        <article class="project-card fade-up" id="project-{{ project.slug }}"{% if not loop.first %} style="transition-delay:{{ (loop.index0 % 3) * 0.1 }}s"{% endif %}>
+          <div class="project-header">
+            <div class="project-icon" aria-hidden="true">{{ project.icon }}</div>
+            <span class="project-status status-{{ project.status }}">● {{ status_labels[project.status] }}</span>
+          </div>
+          <h4 class="project-title">{{ project.name }}</h4>
+          <p class="project-desc">{{ project.summary }}</p>
+
+          {% set has_sections = project.sections|length > 0 %}
+          {% set has_questions = project.questions|default([])|length > 0 %}
+          {% if has_sections or has_questions %}
+          <details class="case-study">
+            <summary>{{ 'Case study' if project.status != 'planned' else 'Plan & evaluation questions' }}</summary>
+            <div class="case-study-body">
+              {% for section_key, label in case_study_sections %}
+                {% if project.sections[section_key] %}
+                <div class="case-section">
+                  <h5>{{ label }}</h5>
+                  <p>{{ project.sections[section_key] }}</p>
+                </div>
+                {% endif %}
+              {% endfor %}
+              {% if has_questions %}
+              <div class="case-section">
+                <h5>Evaluation questions</h5>
+                <ul>
+                  {% for q in project.questions %}<li>{{ q }}</li>{% endfor %}
+                </ul>
+              </div>
+              {% endif %}
+            </div>
+          </details>
+          {% endif %}
+
+          <ul class="tech-tags" aria-label="Technologies">
+            {% for tag in project.tags %}<li class="tag">{{ tag }}</li>{% endfor %}
+          </ul>
+
+          {% set related_posts = articles_by_project.get(project.slug, []) %}
+          {% if project.evidence or related_posts %}
+          <div class="project-links">
+            {% if project.evidence.try_it %}<a href="{{ project.evidence.try_it }}" class="proj-link live">▶ Try it</a>{% endif %}
+            {% if project.evidence.live_url %}<a href="{{ project.evidence.live_url }}" class="proj-link live" target="_blank" rel="noopener">▶ Live demo</a>{% endif %}
+            {% if project.evidence.github %}<a href="{{ project.evidence.github }}" class="proj-link github" target="_blank" rel="noopener">GitHub</a>{% endif %}
+            {% for post in related_posts %}<a href="{{ post.url }}" class="proj-link article">Article</a>{% endfor %}
+            {% if project.evidence.evaluation %}<a href="{{ project.evidence.evaluation }}" class="proj-link evidence" target="_blank" rel="noopener">Evaluation results</a>{% endif %}
+            {% if project.evidence.docs %}<a href="{{ project.evidence.docs }}" class="proj-link evidence" target="_blank" rel="noopener">Architecture</a>{% endif %}
+          </div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- GitHub -->
+    <div class="github-strip fade-up">
+      <div>
+        <h3>Code &amp; evidence</h3>
+        <p>Implementation lives on GitHub. Evaluation results and write-ups are linked from each project as they are published.</p>
+      </div>
+      <a href="{{ profile.links.github }}" class="btn-outline" target="_blank" rel="noopener">View GitHub →</a>
+    </div>
+  </div>
+</section>
+
+<!-- BLOG -->
+<section id="blog">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">02 · Writing</div>
+      <h2 class="section-title">From the blog</h2>
+      <p class="section-sub">Detailed reasoning, experiments, failures, and lessons. This is the part of the work that doesn't fit on a project card.</p>
+    </div>
+
+    {% if recent_posts %}
+    <div class="log-grid">
+      {% for post in recent_posts %}{% include "_post_card.html" %}{% endfor %}
+    </div>
+    {% else %}
+    <p class="search-empty">First article coming soon.</p>
+    {% endif %}
+    <div class="section-actions fade-up">
+      <a href="/blog" class="btn-outline">View all articles →</a>
+    </div>
+  </div>
+</section>
+
+<!-- AI ENGINEERING FOCUS -->
+<section id="focus">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">03 · Focus</div>
+      <h2 class="section-title">AI engineering focus</h2>
+      <p class="section-sub">The areas the projects and articles on this site are built around. These are technical focus areas, not job titles.</p>
+    </div>
+    <ul class="focus-list fade-up" aria-label="AI engineering focus areas">
+      {% for item in profile.ai_focus %}<li class="tag">{{ item }}</li>{% endfor %}
+    </ul>
+  </div>
+</section>
+
+<!-- SKILLS -->
+<section id="skills">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">04 · Toolkit</div>
+      <h2 class="section-title">What supports the work</h2>
+      <p class="section-sub">The tools and concepts behind the projects above, grouped by how they are used, with no ratings. The projects and the blog are the evidence.</p>
+    </div>
+
+    <div class="skills-grid fade-up">
+      {% for group in skill_groups %}
+      <div class="skill-group">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.blurb }}</p>
+        <ul aria-label="{{ group.name }} skills">
+          {% for skill in group.skills %}<li class="tag">{{ skill }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">05 · About</div>
+      <h2 class="section-title">How I work</h2>
+      <p class="section-sub">Build the system, measure whether it actually works, and write down what the evidence showed.</p>
+    </div>
+
+    <div class="about-text fade-up">
+      {% for paragraph in profile.about %}<p>{{ paragraph }}</p>{% endfor %}
+      <div class="about-links">
+        <a href="#projects" class="btn-outline">See the projects</a>
+        <a href="/blog" class="btn-outline">Read the blog</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SEMANTIC SEARCH -->
+<section id="search">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">06 · Explore</div>
+      <h2 class="section-title">Search this portfolio</h2>
+      <p class="section-sub">Ask a question in plain language. It is embedded locally with sentence-transformers and ranked by cosine similarity across the portfolio and blog. No external API. This search box is the <a href="#project-semantic-portfolio-search">Semantic Portfolio Search</a> project.</p>
+    </div>
+    <div class="search-wrap fade-up">
+      <form class="search-input-row" role="search" onsubmit="return false">
+        <label for="search-input" class="sr-only">Search query</label>
+        <input id="search-input" type="text" placeholder="e.g. How is retrieval evaluated?" autocomplete="off" />
+        <button id="search-btn" type="button">Search</button>
+      </form>
+      <div id="search-status" class="search-status" aria-live="polite"></div>
+      <div id="search-results" class="search-results" role="region" aria-label="Search results"></div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="container">
+    <div class="contact-card fade-up">
+      <div class="section-tag">07 · Contact</div>
+      <h2 class="section-title">Let's talk</h2>
+      <p class="contact-text">
+        If you're building AI systems that have to work, or deciding whether they do, I'd like to hear about it. I am always open to conversations about AI engineering work.
+      </p>
+      <div class="contact-links">
+        <a href="{{ profile.links.github }}" class="contact-link" target="_blank" rel="noopener">⌥ GitHub</a>
+        <a href="{{ profile.links.linkedin }}" class="contact-link" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="mailto:{{ profile.links.email }}" class="contact-link">✉ Email</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block widgets %}
+<!-- PORTFOLIO GUIDE — scripted keyword responder, not an LLM -->
+<div id="chat-bubble">
+  <div id="chat-window" role="dialog" aria-label="Portfolio guide" hidden>
+    <div class="chat-header">
+      <div class="chat-avatar" aria-hidden="true">💬</div>
+      <div class="chat-header-text">
+        <h4>Portfolio Guide</h4>
+        <p>● Scripted answers · keyword matching, not an LLM</p>
+      </div>
+    </div>
+    <div id="chat-messages" aria-live="polite">
+      <div class="msg bot">Hi, I'm a small scripted guide, not an AI model. I match a few keywords to prepared answers about the projects, the toolkit, the blog, and contact details. For anything else, the semantic search on this page works better.</div>
+    </div>
+    <div class="chat-quick-replies">
+      <button type="button" class="quick-reply" data-message="What projects have you built?">Projects?</button>
+      <button type="button" class="quick-reply" data-message="What is on the blog?">Blog?</button>
+      <button type="button" class="quick-reply" data-message="What tools do you work with?">Toolkit?</button>
+      <button type="button" class="quick-reply" data-message="How do I contact you?">Contact?</button>
+    </div>
+    <div class="chat-input-row">
+      <label for="chat-input" class="sr-only">Ask the portfolio guide</label>
+      <input id="chat-input" type="text" placeholder="Ask about projects, the blog, or the toolkit..." />
+      <button id="chat-send" type="button" aria-label="Send">➤</button>
+    </div>
+  </div>
+  <button id="chat-toggle" type="button" aria-expanded="false" aria-label="Open portfolio guide" aria-controls="chat-window">💬</button>
+</div>
+{% endblock %}

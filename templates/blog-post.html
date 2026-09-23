@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set active = 'blog' %}
+{% block title %}{{ post.title }} · {{ profile.name }}{% endblock %}
+{% block description %}{{ post.description }}{% endblock %}
+
+{% block content %}
+<article class="article">
+  <div class="container">
+    <header class="article-header">
+      <div class="log-date">
+        <time datetime="{{ post.date.isoformat() }}">{{ post.date_display }}</time> · {{ post.reading_minutes }} min read
+      </div>
+      <h1 class="article-title">{{ post.title }}</h1>
+      <p class="article-description">{{ post.description }}</p>
+      {% if post.tags %}
+      <ul class="tech-tags" aria-label="Tags">
+        {% for tag in post.tags %}<li class="tag">{{ tag }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% if post.related_project or post.github_url %}
+      <div class="article-related">
+        {% if post.related_project %}
+        <strong>Related project</strong>
+        <a class="text-link" href="/#project-{{ post.related_project.slug }}">{{ post.related_project.name }}</a>
+        {% endif %}
+        {% if post.github_url %}
+        <strong{% if post.related_project %} style="margin-top:8px"{% endif %}>Code</strong>
+        <a class="text-link" href="{{ post.github_url }}" target="_blank" rel="noopener">{{ post.github_url }}</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </header>
+
+    <div class="article-body">
+      {{ post.body_html | safe }}
+    </div>
+
+    <footer class="article-footer">
+      <a href="/blog" class="btn-outline">← All articles</a>
+      <a href="/" class="btn-outline">Portfolio →</a>
+    </footer>
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set active = 'blog' %}
+{% set centered_page = true %}
+{% block title %}Blog · {{ profile.name }}{% endblock %}
+{% block description %}Technical writing by {{ profile.name }} on AI evaluation, reliability, agents, and what fails along the way.{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div class="container">
+    <div class="section-tag">Blog</div>
+    <h1 class="section-title">Technical Writing</h1>
+    <p class="section-sub">What I build, how I evaluate it, where it fails, and what the evidence showed. Written for engineers, readable by anyone.</p>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="container">
+    {% if posts %}
+    <div class="post-list">
+      {% for post in posts %}{% include "_post_card.html" %}{% endfor %}
+    </div>
+    {% else %}
+    <p class="search-empty">No articles published yet.</p>
+    {% endif %}
+    <div class="section-actions">
+      <a href="/" class="btn-outline">← Back to portfolio</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

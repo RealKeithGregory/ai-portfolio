@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Not found · {{ profile.name }}{% endblock %}
+{% block content %}
+<section class="error-page">
+  <div class="container">
+    <div class="section-tag">404</div>
+    <h1 class="section-title">Page not found</h1>
+    <p class="section-sub">{{ detail or "That path doesn't exist." }}</p>
+    <div class="hero-ctas">
+      <a href="/" class="btn-primary">← Portfolio</a>
+      <a href="/blog" class="btn-outline">Blog</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
