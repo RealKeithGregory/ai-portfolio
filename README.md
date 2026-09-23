@@ -20,7 +20,10 @@ Vanilla HTML/CSS/JS   one stylesheet, one script, no build   public/
 Markdown + YAML       blog articles with front matter        content/blog/
 Python data           canonical profile/projects/skills      content.py
 sentence-transformers semantic search over content + blog    search.py
-pytest                route, blog, search, and content tests tests/
+Starlette middleware  security headers, rate + size limits   security.py
+Environment settings  one variable: APP_ENV                  config.py
+pytest                route, blog, search, security tests    tests/
+Container image       CPU PyTorch + baked model, Cloud Run   Dockerfile
 ```
 
 Request flow:
@@ -49,7 +52,10 @@ uvicorn server:app --reload --reload-include '*.md' --reload-include '*.html' --
 
 Open <http://localhost:3000>. The `--reload-include` flags make uvicorn
 restart when a blog post or template changes, not only Python files. The first start downloads the embedding model
-(~90 MB) into the Hugging Face cache; later starts take a few seconds.
+(~87 MB) into the Hugging Face cache; later starts take a few seconds.
+
+`APP_ENV` defaults to `development`, so `/docs`, `/redoc` and `/openapi.json`
+are available locally and no HSTS header is sent. See `.env.example`.
 
 On later sessions only the last two lines are needed. Activate the virtual
 environment, then run uvicorn. If VS Code offers to use `./venv` as the
@@ -75,6 +81,9 @@ The suite starts the app once (loading the model) and covers:
 - boundaries: the app serves only its declared routes, pages link only to
   approved destinations, and the search index is built only from approved
   content sources
+- security: the response headers, that the templates contain nothing the CSP
+  forbids, that the interactive docs are development-only, and that the rate
+  and body-size limits hold
 
 `python -m blog` validates every article from the command line. CI
 (`.github/workflows/ci.yml`) installs dependencies, validates posts, checks
@@ -108,6 +117,16 @@ Rules enforced by `blog.py` (and by the tests):
 - `slug` is lowercase words joined by hyphens and must be unique
 - `related_project`, if set, must match a project slug in `content.py`
 
+**Article Markdown is trusted content.** Posts come from this repository and
+are never accepted from a visitor or any other external source. The rendered
+HTML is inserted into the page unescaped (`post.body_html | safe`), and
+python-markdown passes raw HTML through, so a `<script>` tag written into an
+article would run. That is the same trust already placed in `content.py` and
+the templates: committing to this repository is the trust boundary. Everything
+that *does* come from a visitor -- search queries and Portfolio Guide messages
+-- is escaped, and the CSP blocks inline script regardless. If articles ever
+come from somewhere else, that is the point to add a sanitizer.
+
 Posts and embeddings are loaded once at startup. With the run command above
 the server restarts itself when a `.md` or `.html` file changes; without the
 `--reload-include` flags, restart it by hand after editing content.
@@ -130,6 +149,72 @@ employment history, meaning no employer names, job titles, dates, or duties. Any
 added there is rendered publicly *and* embedded into the semantic search index,
 so it is retrievable by any visitor. Personal resume material is kept
 outside the repository entirely and is never served.
+
+## Production
+
+One environment variable decides the difference, and it is never set locally:
+
+| | development (default) | `APP_ENV=production` |
+|---|---|---|
+| `/docs`, `/redoc`, `/openapi.json` | served | not served |
+| `Strict-Transport-Security` | not sent | sent, one year |
+| everything else | identical | identical |
+
+Set in `Dockerfile`; `.env.example` lists it. The app reads real environment
+variables, so `.env` is only for your own shell and is never required.
+
+### What the app defends itself with
+
+- **Security headers** on every response, pages and API alike (`security.py`).
+  The CSP is `default-src 'self'` with no `'unsafe-inline'` and no
+  `'unsafe-eval'`: the only external origins allowed are the Google Fonts
+  stylesheet and the font files it loads. Nothing in the templates uses an
+  inline `<script>`, an `on*=` handler, or a `style=` attribute, and tests
+  assert that stays true -- a CSP is only worth having if the site obeys it.
+  Also `nosniff`, `frame-ancestors 'none'` with `X-Frame-Options: DENY`,
+  `strict-origin-when-cross-origin`, and a `Permissions-Policy` that denies
+  every browser feature the site does not use.
+- **Rate limits** on the two POST endpoints, per client IP, in memory:
+  20/minute on `/api/search` (it runs embedding inference) and 40/minute on
+  `/api/chat` (keyword matching, cheaper). Over the limit is a `429` with
+  `Retry-After`, which the page reports as a rate limit rather than a
+  failure. Pages are never throttled. The counters live in the process, which
+  is exactly right for a deployment capped at one instance; more than one
+  instance would mean each enforcing its own separate allowance.
+- **Request bounds.** Both endpoints take one string of at most 500
+  characters. A body over 16 KB is refused with `413` before it is read.
+  Empty, blank, wrong-typed, over-long and malformed-JSON bodies all return
+  `422`. Cloud Run additionally caps a request body at 32 MB.
+- **A pinned model.** `search.py` names the model in full and pins it to one
+  commit of its Hugging Face repository, with `trust_remote_code` off so no
+  code from that repository is ever executed. The weights are downloaded into
+  the image at build time, so a running container needs no network access
+  (`HF_HUB_OFFLINE=1`) and a cold start does not wait on a download.
+
+## Deployment
+
+Google Cloud Run, from the `Dockerfile` in this repository.
+
+| | |
+|---|---|
+| Build | `gcloud run deploy --source .` (Cloud Build reads the Dockerfile) |
+| Start | `uvicorn server:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'` |
+| Health check | `/` |
+| CPU / memory | 1 vCPU, 2 GiB (measured peak ~450 MB: PyTorch ~200 MB, model and app the rest) |
+| Instances | min 0, max 1 -- scales to zero when idle |
+| Billing | request-based, so CPU is charged only while serving |
+| Environment | `APP_ENV=production`, `HF_HUB_OFFLINE=1` (both set in the image) |
+| Persistent disk | none; the image carries the model |
+
+The image installs the CPU build of PyTorch from PyTorch's own index. The
+default PyPI wheel brings roughly 2 GB of CUDA libraries that a CPU instance
+cannot use. CI installs the same CPU wheel, so tests run against what
+production runs.
+
+`--proxy-headers --forwarded-allow-ips='*'` tells uvicorn to take the client
+IP from `X-Forwarded-For`, which the rate limiter needs. Trusting that header
+from any source is safe here only because Google's front end is the sole
+route to the container: nothing else can reach the port.
 
 ## Philosophy
 

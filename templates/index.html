@@ -26,7 +26,7 @@
       </div>
 
       <!-- Terminal Card -->
-      <div class="hero-terminal fade-up" style="transition-delay:0.2s" aria-hidden="true">
+      <div class="hero-terminal fade-up delay-2" aria-hidden="true">
         <div class="terminal-bar">
           <div class="dot r"></div>
           <div class="dot y"></div>
@@ -68,7 +68,7 @@
 
       <div class="projects-grid">
         {% for project in projects_in_category(key) %}
-        <article class="project-card fade-up" id="project-{{ project.slug }}"{% if not loop.first %} style="transition-delay:{{ (loop.index0 % 3) * 0.1 }}s"{% endif %}>
+        <article class="project-card fade-up delay-{{ loop.index0 % 3 }}" id="project-{{ project.slug }}">
           <div class="project-header">
             <div class="project-icon" aria-hidden="true">{{ project.icon }}</div>
             <span class="project-status status-{{ project.status }}">● {{ status_labels[project.status] }}</span>
@@ -221,7 +221,7 @@
       <p class="section-sub">Ask a question in plain language. It is embedded locally with sentence-transformers and ranked by cosine similarity across the portfolio and blog. No external API. This search box is the <a href="#project-semantic-portfolio-search">Semantic Portfolio Search</a> project.</p>
     </div>
     <div class="search-wrap fade-up">
-      <form class="search-input-row" role="search" onsubmit="return false">
+      <form class="search-input-row" role="search">
         <label for="search-input" class="sr-only">Search query</label>
         <input id="search-input" type="text" placeholder="e.g. How is retrieval evaluated?" autocomplete="off" />
         <button id="search-btn" type="button">Search</button>

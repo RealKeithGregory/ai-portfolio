@@ -1,0 +1,20 @@
+# Default-deny: nothing enters the build context unless it is named here.
+#
+# An allowlist rather than a list of exclusions, so that a new private file
+# or directory alongside this repository is never uploaded by accident. It
+# is also why no private path needs naming in this public file.
+*
+
+# The application
+!server.py
+!config.py
+!security.py
+!content.py
+!blog.py
+!search.py
+
+# Dependencies, templates, static assets, and the articles
+!requirements.txt
+!templates/
+!public/
+!content/

@@ -16,7 +16,18 @@ from sentence_transformers import SentenceTransformer
 
 import content
 
-MODEL_NAME = "all-MiniLM-L6-v2"
+# The embedding model, named in full and pinned to one commit of the Hugging
+# Face repository. The pin matters here because the retrieval tests assert
+# which chunk ranks first for a given question: if the upstream repository
+# published new weights, those assertions would start failing for a reason
+# that has nothing to do with this code. Moving the pin is a deliberate
+# change, reviewed by re-running the retrieval tests.
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+# The model is plain BERT weights loaded by sentence-transformers. It carries
+# no custom modelling code, and none is ever executed: see load_model().
+MODEL_TRUST_REMOTE_CODE = False
+
 DEFAULT_TOP_K = 5
 SNIPPET_CHARS = 260
 # Blog paragraphs are grouped until a chunk reaches roughly this many words.
@@ -119,12 +130,29 @@ def blog_chunks(posts):
     return chunks
 
 
+def load_model():
+    """Load the pinned embedding model.
+
+    The weights are downloaded from the Hugging Face Hub on first use and
+    cached (~90 MB, under HF_HOME). In deployment that download happens once,
+    while the app starts, before it serves its first request.
+
+    `trust_remote_code` stays False so that nothing from the model repository
+    is ever executed as Python -- only weights and config are read.
+    """
+    return SentenceTransformer(
+        MODEL_NAME,
+        revision=MODEL_REVISION,
+        trust_remote_code=MODEL_TRUST_REMOTE_CODE,
+    )
+
+
 class SearchIndex:
     """Embeds chunks once; `query` ranks them by cosine similarity."""
 
     def __init__(self, chunks, model=None):
         self.chunks = chunks
-        self.model = model or SentenceTransformer(MODEL_NAME)
+        self.model = model or load_model()
         self.embeddings = self.model.encode(
             [c["text"] for c in chunks], normalize_embeddings=True
         )

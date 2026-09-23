@@ -17,8 +17,10 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import blog
+import config
 import content
 import search
+import security
 
 BASE_DIR = Path(__file__).parent
 RECENT_POSTS_ON_HOME = 3
@@ -35,7 +37,25 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+def docs_settings():
+    """FastAPI's interactive docs are a development convenience. Production
+    serves only the routes this site declares, so /docs, /redoc and the
+    OpenAPI schema are not built at all there."""
+    if config.IS_PRODUCTION:
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {}
+
+
+app = FastAPI(lifespan=lifespan, **docs_settings())
+
+# Held by name so that its counters can be inspected and reset.
+api_limiter = security.RateLimiter()
+
+# Added last means outermost: the security headers are applied to every
+# response, including the 429 and 413 the guard below returns itself.
+app.add_middleware(security.ApiGuardMiddleware, limiter=api_limiter)
+app.add_middleware(security.SecurityHeadersMiddleware, hsts=config.IS_PRODUCTION)
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "public"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 

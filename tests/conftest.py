@@ -21,3 +21,15 @@ def client():
 @pytest.fixture(scope="session")
 def posts(client):
     return server.app.state.posts
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limits():
+    """Clear the API rate-limit counters before each test.
+
+    The client is session-scoped, so without this the requests made by one
+    test would count against the next one's allowance and the suite would
+    start returning 429s. The limiter's own tests do their counting inside a
+    single test, so they are unaffected."""
+    server.api_limiter.reset()
+    yield

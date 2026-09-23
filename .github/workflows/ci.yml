@@ -16,24 +16,32 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
-      # The embedding model (~90 MB) is downloaded on first use; cache it
-      # between runs so the test job stays fast.
+      # The embedding model (~87 MB) is downloaded on first use; cache it
+      # between runs so the test job stays fast. The key carries the pinned
+      # revision from search.py, so changing the pin fetches the new weights.
       - name: Cache sentence-transformers model
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-all-MiniLM-L6-v2
+          key: hf-all-MiniLM-L6-v2-1110a243fdf4706b3f48f1d95db1a4f5529b4d41
 
-      - name: Install dependencies
+      # The CPU build, as the deployed image uses. The default PyPI wheel
+      # pulls ~2 GB of CUDA libraries that no runner or Cloud Run instance
+      # here can use. Installed first so the pinned set below finds it
+      # already satisfied.
+      - name: Install CPU PyTorch
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.10.0
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
 
       - name: Validate blog posts
         run: python -m blog
 
       - name: Check syntax
-        run: python -m compileall -q server.py content.py blog.py search.py tests
+        run: python -m compileall -q server.py config.py security.py content.py blog.py search.py tests
 
       - name: Run tests
         run: python -m pytest -q

@@ -177,9 +177,25 @@ def test_guide_still_answers_availability_questions(client):
     assert "open to conversations" in reply
 
 
-@pytest.mark.parametrize("payload", [{}, {"message": ""}, {"message": "x" * 501}])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"message": ""},
+        {"message": 123},
+        {"message": "x" * 501},
+        {"msg": "wrong field"},
+    ],
+)
 def test_malformed_guide_requests_fail_safely(client, payload):
     assert client.post("/api/chat", json=payload).status_code == 422
+
+
+def test_invalid_guide_json_body_is_rejected(client):
+    r = client.post(
+        "/api/chat", content="not json", headers={"Content-Type": "application/json"}
+    )
+    assert r.status_code == 422
 
 
 def test_templates_render_positioning_from_the_content_module():

@@ -1,8 +1,35 @@
-# Runtime dependencies. Install dev/test tools with requirements-dev.txt.
-fastapi>=0.110
-uvicorn[standard]>=0.29
-jinja2>=3.1
-markdown>=3.5
-pyyaml>=6.0
-sentence-transformers>=3.0
-numpy>=1.26
+# Runtime dependencies, pinned to exact versions.
+#
+# Why exact pins and not a generated lock file: the heavy dependency here is
+# PyTorch, whose wheels differ by platform (a Linux install pulls CUDA
+# packages that do not exist on macOS). A lock file generated on one machine
+# would be wrong on the other, so this file pins what the application
+# actually imports, and the packages that decide how the model loads, and
+# leaves the rest of the tree to pip. It needs no tooling beyond pip.
+#
+# To upgrade: change a version here, reinstall, and run the tests. The
+# retrieval tests assert which result ranks first, so a change that moves the
+# embeddings will show up there.
+#
+# Install dev/test tools with requirements-dev.txt.
+
+# Web application
+fastapi==0.135.1
+starlette==0.52.1
+pydantic==2.12.5
+uvicorn[standard]==0.41.0
+
+# Templates and content
+jinja2==3.1.6
+markupsafe==3.0.3
+markdown==3.10.3
+pyyaml==6.0.3
+
+# Semantic search. torch, transformers and huggingface_hub are pulled in by
+# sentence-transformers, but they are pinned here too because they decide
+# how the model is fetched and loaded -- see MODEL_REVISION in search.py.
+sentence-transformers==5.3.0
+transformers==5.3.0
+huggingface_hub==1.7.1
+torch==2.10.0
+numpy==2.4.3

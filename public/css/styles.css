@@ -814,6 +814,9 @@ nav {
   color: var(--text-dim);
 }
 
+/* Only the second label needs separating from the link above it. */
+.article-related strong ~ strong { margin-top: 8px; }
+
 /* Readable prose: larger type, generous leading, measured line length */
 .article-body {
   max-width: 72ch;      /* ~65-80 characters per line */
@@ -1220,6 +1223,14 @@ footer span { color: var(--green); }
   transform: translateY(0);
 }
 
+/* Stagger classes. These replace inline style="transition-delay:..."
+   attributes so the Content-Security-Policy can forbid inline styles
+   outright. They must stay after .fade-up, whose `transition` shorthand
+   resets the delay. */
+.delay-0 { transition-delay: 0s; }
+.delay-1 { transition-delay: 0.1s; }
+.delay-2 { transition-delay: 0.2s; }
+
 /* ─── SEMANTIC SEARCH ───────────────────────────────────────── */
 #search { background: var(--bg); }
 
@@ -1601,3 +1612,6 @@ footer span { color: var(--green); }
   /* Keep the JSON legible on a phone rather than shrinking it to fit. */
   .terminal-body { padding: 18px 16px; }
 }
+
+/* ─── Section that follows a page header needs no top padding ─── */
+.section-flush-top { padding-top: 0; }
