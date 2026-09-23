@@ -45,3 +45,76 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+  # Builds the image Cloud Run actually runs. This job needs no Google Cloud
+  # credentials and pushes nothing: it only proves the image can be built and
+  # started, so a broken Dockerfile, a dependency that will not install, or a
+  # model that fails to bake in is caught here instead of at deploy time.
+  image:
+    name: Production image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ai-portfolio:ci
+          # Layer cache, so only the layers that changed are rebuilt. The
+          # PyTorch install is the expensive one and rarely changes.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Model is baked into the image
+        run: |
+          docker run --rm ai-portfolio:ci \
+            sh -c 'test -d /opt/hf-cache/hub/models--sentence-transformers--all-MiniLM-L6-v2'
+          echo "model directory present"
+
+      - name: Model loads with no network at all
+        # --network none is the real test of HF_HUB_OFFLINE: if anything still
+        # reached for the Hugging Face Hub at runtime, this step could not pass.
+        run: |
+          docker run --rm --network none ai-portfolio:ci python -c "
+          import search
+          model = search.load_model()
+          print('loaded', search.MODEL_NAME, 'at', search.MODEL_REVISION[:12])
+          print('embedding shape', model.encode(['portfolio'], normalize_embeddings=True).shape)
+          "
+
+      - name: Container starts and serves production configuration
+        run: |
+          docker run -d --name ci-check -p 8080:8080 ai-portfolio:ci
+          for i in $(seq 1 60); do
+            curl -fsS -o /dev/null http://localhost:8080/ && break
+            sleep 2
+          done
+          echo "--- homepage and API ---"
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/)" = "200"
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/blog)" = "200"
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/search \
+            -H 'Content-Type: application/json' -d '{"query":"evaluation"}')" = "200"
+          echo "--- production disables the interactive docs ---"
+          for path in /docs /redoc /openapi.json; do
+            test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080$path)" = "404"
+          done
+          echo "--- security headers are present ---"
+          headers=$(curl -sS -D - -o /dev/null http://localhost:8080/)
+          for header in content-security-policy x-content-type-options x-frame-options \
+                        referrer-policy permissions-policy strict-transport-security; do
+            echo "$headers" | grep -qi "^$header:" || { echo "missing $header"; exit 1; }
+          done
+          echo "all checks passed"
+
+      - name: Container logs
+        if: always()
+        run: docker logs ci-check 2>&1 | tail -20 || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f ci-check || true

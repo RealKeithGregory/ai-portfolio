@@ -1,0 +1,35 @@
+# Dependency update monitoring.
+#
+# The requirements files pin exact versions on purpose, so nothing here
+# loosens them: Dependabot opens a pull request proposing a new pin, and that
+# pull request has to pass the same CI as any other change -- the retrieval
+# regression tests and the production image build included. Nothing merges on
+# its own; every update is reviewed and merged by hand.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      # The ML stack moves together; reviewing and testing it as one change
+      # is more useful than four separate pull requests that each need the
+      # retrieval tests run against them.
+      ml-stack:
+        patterns:
+          - "torch"
+          - "transformers"
+          - "sentence-transformers"
+          - "huggingface_hub"
+          - "numpy"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
