@@ -239,8 +239,9 @@ headers below.
 ### The container, and why it is still here
 
 `Dockerfile` builds the same application for Google Cloud Run, which hosted
-the site before this and is kept as a rollback target. CI still builds and
-starts that image on every push, so the fallback cannot rot unnoticed.
+the site before this and is kept idle as a temporary rollback target. CI
+still builds and starts that image on every push, so the fallback cannot rot
+unnoticed.
 
 ### Which client address is trusted
 
@@ -248,10 +249,10 @@ The rate limiter keys on an address, so which address matters. uvicorn's
 `--proxy-headers` is deliberately **not** used: with `--forwarded-allow-ips='*'`
 it takes the **left-most** `X-Forwarded-For` entry, and that is the one a
 visitor writes. `security.client_identity()` reads the header itself and
-takes the **right-most** entry instead -- the one Google's front end appended
-after seeing the connection. A request forged with `X-Forwarded-For: 9.9.9.9`
-arrives as `9.9.9.9, <real address>`, so the forgery lands on the left and is
-ignored.
+takes the **right-most** entry instead -- the one the platform in front wrote
+after seeing the connection, rather than one the visitor supplied. A request
+forged with `X-Forwarded-For: 9.9.9.9` arrives as `9.9.9.9, <real address>`,
+so the forgery lands on the left and is ignored.
 
 IPv6 visitors are counted per **/64 network** rather than per address. A
 home connection is handed a whole /64 and its host bits rotate on their own
@@ -259,13 +260,13 @@ home connection is handed a whole /64 and its host bits rotate on their own
 unlimited supply of allowances. IPv4 is counted per address.
 
 `TRUSTED_PROXY_HOPS = 1` says one proxy in front of the app may be believed.
-That is true on Vercel, which sets `X-Forwarded-For` to the client's address
-and discards whatever the client sent -- so the header arrives with one entry
-and that entry is not the visitor's to choose. It was equally true on Cloud
-Run, where nothing reaches the container except through Google's front end.
-Exposing this app's port directly would make the header forgeable again, so
-the assumption is pinned by a test rather than left in a comment. With no
-header at all, the socket peer is used.
+Vercel sets `X-Forwarded-For` to the client's address and discards whatever
+the client sent, so the header arrives with a single entry that is not the
+visitor's to choose. The container fallback has the same shape for a
+different reason: nothing reaches it except through a front end that appends
+the address it saw. Serving this app with its port exposed directly would
+make the header forgeable again, so the assumption is pinned by a test rather
+than left in a comment. With no header at all, the socket peer is used.
 
 Checked against the running site rather than assumed: fill the window to the
 limit, then replay it with `X-Forwarded-For`, `X-Real-IP`, `Forwarded`,
