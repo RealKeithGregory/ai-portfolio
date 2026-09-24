@@ -25,7 +25,7 @@
 # Dependencies, templates, static assets, and the articles
 !/requirements.txt
 !/templates/
-!/public/
+!/assets/
 !/content/
 
 # Build instructions. Cloud Build needs these; the image does not.

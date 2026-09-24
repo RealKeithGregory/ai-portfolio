@@ -5,7 +5,11 @@ Index-source tests are allowlists. Every chunk must come from a declared
 content category and point at a declared public URL, so anything that is not
 part of the published site cannot reach the index unnoticed."""
 
+import os
 import re
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -191,3 +195,35 @@ def test_visitor_questions_return_project_or_blog_evidence(client, query):
     assert top["url"].startswith("/#project") or top["url"].startswith("/blog"), (
         f"{query!r} -> {top['section']}"
     )
+
+
+# ─── WHERE THE WEIGHTS COME FROM ─────────────────────────────────────────────
+# Three deployments load the same pinned model from three different places:
+# the Cloud Run image sets HF_HOME to a path baked into the container, Vercel
+# gets a cache written beside the code at build time, and a developer's
+# machine uses the default under ~/.cache. search.py fills in only the middle
+# case, and these tests pin the two halves of that rule.
+
+
+def test_bundled_cache_sits_beside_the_code():
+    """Vercel's filesystem is read-only at runtime, so the weights have to be
+    written during the build and read from the bundle afterwards. Both ends
+    of that arrangement -- vercel_build.py and search.py -- have to agree on
+    one path without either naming an absolute deployment directory."""
+    assert search.BUNDLED_MODEL_CACHE == Path(search.__file__).parent / "hf-cache"
+
+
+def test_an_explicit_hf_home_is_never_overridden():
+    """The Cloud Run image sets HF_HOME to the cache baked into it. If
+    importing search.py replaced that value, the container would look for
+    weights in a directory that does not exist there, and every search would
+    fail on a cold start."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import os, search; print(os.environ['HF_HOME'])"],
+        cwd=Path(__file__).resolve().parent.parent,
+        env={**os.environ, "HF_HOME": "/set/by/the/platform"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "/set/by/the/platform"

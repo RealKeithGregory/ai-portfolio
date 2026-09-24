@@ -17,3 +17,10 @@ htmlcov/
 # Logs and OS cruft
 *.log
 .DS_Store
+
+# Vercel CLI link and local environment pulls
+.vercel/
+.env*.local
+
+# Model weights baked in at build time by vercel_build.py
+hf-cache/

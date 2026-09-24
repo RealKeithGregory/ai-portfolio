@@ -122,7 +122,7 @@ def test_templates_use_no_inline_style(template):
 def test_stagger_classes_the_templates_use_are_defined():
     """The delay classes replaced inline transition-delay attributes, so a
     missing rule would silently drop the animation instead of erroring."""
-    css = (Path(__file__).resolve().parent.parent / "public/css/styles.css").read_text()
+    css = (Path(__file__).resolve().parent.parent / "assets/css/styles.css").read_text()
     for rule in (".delay-0", ".delay-1", ".delay-2", ".section-flush-top"):
         assert rule in css, f"{rule} is used by a template but not defined"
 

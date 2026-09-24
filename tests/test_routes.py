@@ -138,7 +138,7 @@ def test_undeclared_paths_are_not_served(client):
 
 
 def test_static_mount_serves_only_public_assets(client):
-    """The static mount must not reach files outside public/."""
+    """The static mount must not reach files outside assets/."""
     for path in [
         "/static/../content.py",
         "/static/../../content.py",

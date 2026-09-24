@@ -16,5 +16,5 @@
 # Dependencies, templates, static assets, and the articles
 !requirements.txt
 !templates/
-!public/
+!assets/
 !content/

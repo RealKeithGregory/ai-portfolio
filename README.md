@@ -18,7 +18,7 @@ observability, with a growing focus on financial AI. It has three jobs:
 ```text
 FastAPI               routing, lifespan, JSON APIs           server.py
 Jinja2 templates      server-rendered pages                  templates/
-Vanilla HTML/CSS/JS   one stylesheet, one script, no build   public/
+Vanilla HTML/CSS/JS   one stylesheet, one script, no build   assets/
 Markdown + YAML       blog articles with front matter        content/blog/
 Python data           canonical profile/projects/skills      content.py
 sentence-transformers semantic search over content + blog    search.py

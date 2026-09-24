@@ -11,6 +11,9 @@ not part of content.py and must never be added to the index -- anything
 embedded here is retrievable by any visitor.
 """
 
+import os
+from pathlib import Path
+
 import numpy as np
 
 import content
@@ -26,6 +29,20 @@ MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
 # The model is plain BERT weights loaded by sentence-transformers. It carries
 # no custom modelling code, and none is ever executed: see load_model().
 MODEL_TRUST_REMOTE_CODE = False
+
+# Where the weights live when the deployment bakes them in beside the code
+# rather than mounting a cache. Vercel's filesystem is read-only at runtime,
+# so the model has to be written during the build (see vercel_build.py) and
+# read from the bundle afterwards.
+#
+# setdefault, not assignment: the Cloud Run image sets HF_HOME itself and a
+# developer's machine has its own cache, and neither should be overridden.
+# This also has to happen at import time, because huggingface_hub reads
+# HF_HOME once when it is first imported -- which is inside load_model(),
+# well after this module is imported by server.py.
+BUNDLED_MODEL_CACHE = Path(__file__).parent / "hf-cache"
+if BUNDLED_MODEL_CACHE.is_dir():
+    os.environ.setdefault("HF_HOME", str(BUNDLED_MODEL_CACHE))
 
 DEFAULT_TOP_K = 5
 SNIPPET_CHARS = 260

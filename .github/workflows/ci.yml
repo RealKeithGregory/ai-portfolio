@@ -46,6 +46,83 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+  # Builds the function Vercel actually runs. Vercel installs the CPU build of
+  # PyTorch and then runs vercel_build.py, which bakes the pinned model into
+  # the bundle; this job does the same two steps and then proves the result
+  # serves with no network and no Hugging Face cache but the baked one. A
+  # dependency that will not install, a model that fails to bake, or a symlink
+  # that would not survive bundling is caught here instead of at deploy time.
+  vercel-package:
+    name: Vercel function package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Pinned by .python-version, which is also what Vercel reads.
+          python-version-file: .python-version
+
+      # Runs vercel.json's own installCommand rather than a copy of it, so
+      # this job cannot drift from what the platform actually does.
+      - name: Install exactly what Vercel installs
+        run: |
+          install=$(python -c "import json; print(json.load(open('vercel.json'))['installCommand'])")
+          echo "vercel.json installCommand: $install"
+          eval "$install"
+
+      - name: PyTorch is the CPU build, not the CUDA one
+        run: |
+          python -c "
+          import torch
+          print('torch', torch.__version__)
+          assert torch.__version__.endswith('+cpu'), torch.__version__
+          "
+
+      # Likewise the build command, read from vercel.json.
+      - name: Bake the model into the bundle
+        run: |
+          build=$(python -c "import json; print(json.load(open('vercel.json'))['buildCommand'])")
+          echo "vercel.json buildCommand: $build"
+          eval "$build"
+
+      - name: The bundle carries real files, not symlinks
+        run: |
+          test -d hf-cache
+          count=$(find hf-cache -type l | wc -l)
+          test "$count" -eq 0 || { echo "$count symlink(s) in hf-cache"; exit 1; }
+          echo "hf-cache is $(du -sm hf-cache | cut -f1) MB, no symlinks"
+
+      - name: The app serves offline from the baked bundle alone
+        # HOME is moved aside so the only Hugging Face cache reachable is the
+        # one vercel_build.py just wrote. With HF_HUB_OFFLINE=1 a download is
+        # impossible, so a search that returns results proves the bundle is
+        # self-contained -- which is what the function relies on at runtime.
+        env:
+          HF_HUB_OFFLINE: "1"
+          APP_ENV: production
+        run: |
+          mkdir -p /tmp/empty-home
+          HOME=/tmp/empty-home python -m uvicorn server:app --host 127.0.0.1 --port 8000 &
+          for i in $(seq 1 60); do
+            curl -fsS -o /dev/null http://127.0.0.1:8000/ && break
+            sleep 2
+          done
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "200"
+          echo "--- a real search, offline, from the baked weights ---"
+          body=$(curl -sS -X POST http://127.0.0.1:8000/api/search \
+            -H 'Content-Type: application/json' -d '{"query":"semantic search"}')
+          echo "$body" | python -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          assert d['results'], 'no results'
+          print('top result:', d['results'][0]['section'], d['results'][0]['score'])
+          "
+          echo "--- production still disables the interactive docs ---"
+          for path in /docs /redoc /openapi.json; do
+            test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000$path)" = "404"
+          done
+
   # Builds the image Cloud Run actually runs. This job needs no Google Cloud
   # credentials and pushes nothing: it only proves the image can be built and
   # started, so a broken Dockerfile, a dependency that will not install, or a

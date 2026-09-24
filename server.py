@@ -123,7 +123,7 @@ api_limiter = security.RateLimiter()
 app.add_middleware(security.ApiGuardMiddleware, limiter=api_limiter)
 app.add_middleware(security.SecurityHeadersMiddleware, hsts=config.IS_PRODUCTION)
 
-app.mount("/static", StaticFiles(directory=BASE_DIR / "public"), name="static")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "assets"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
@@ -151,7 +151,7 @@ def articles_by_project(posts):
 def asset_version():
     """Newest mtime of the static assets, appended to their URLs so browsers
     never keep a stale stylesheet or script after an edit."""
-    files = [BASE_DIR / "public" / "css" / "styles.css", BASE_DIR / "public" / "js" / "site.js"]
+    files = [BASE_DIR / "assets" / "css" / "styles.css", BASE_DIR / "assets" / "js" / "site.js"]
     return str(int(max(f.stat().st_mtime for f in files)))
 
 

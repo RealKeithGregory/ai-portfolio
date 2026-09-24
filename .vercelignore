@@ -1,0 +1,34 @@
+# What the Vercel CLI uploads.
+#
+# Vercel runs the application itself: FastAPI, the templates, the articles,
+# the static assets, and the build step that bakes the embedding model into
+# the bundle. Nothing else in this repository belongs there.
+#
+# Default-deny, matching .gcloudignore and .dockerignore: nothing is
+# uploaded unless it is named here. That way a new private file alongside
+# this repository is never sent by accident, and no private path has to be
+# named in this public file.
+#
+# Git-triggered deployments do not use this file -- they build from the
+# repository, which contains none of those private directories in the first
+# place. This is the guard for `vercel deploy` from a working tree.
+/*
+
+# The application
+!/server.py
+!/config.py
+!/security.py
+!/content.py
+!/blog.py
+!/search.py
+
+# Dependencies, the build step, and the platform configuration
+!/requirements.txt
+!/vercel_build.py
+!/vercel.json
+!/.python-version
+
+# Templates, static assets, and the articles
+!/templates
+!/assets
+!/content
