@@ -393,3 +393,186 @@ def test_the_trust_assumption_is_the_deployment_topology():
     not left as a comment."""
     assert security.client_identity(scope_with(["9.9.9.9"])) == "9.9.9.9"
     assert security.client_identity(scope_with(["9.9.9.9"]), trusted_hops=0) == "10.0.0.1"
+
+
+# ─── CLIENT IDENTITY THROUGH THE VERCEL FRONT DOOR ────────────────────────────
+# The public site is served by Vercel, which proxies to Cloud Run, so a real
+# visitor's request passes two proxies and arrives as
+# "<visitor>, <Vercel edge>". The Cloud Run URL is still public, so the
+# one-proxy shape arrives too, and anyone may send a forged X-Forwarded-For
+# straight to it. These tests pin down that the app counts from the correct
+# position in each case and that neither route can borrow the other's rules.
+FRONT_DOOR_SECRET = "test-front-door-secret"
+VERCEL_EDGE = "198.51.100.200"
+
+
+def front_door_scope(forwarded, secret=FRONT_DOOR_SECRET, peer="10.0.0.1"):
+    """A request shaped the way one arrives through Vercel."""
+    scope = scope_with(forwarded, peer=peer)
+    if secret is not None:
+        scope["headers"].append((security.FRONT_DOOR_HEADER, secret.encode()))
+    return scope
+
+
+@pytest.fixture
+def front_door(monkeypatch):
+    """The deployed configuration: a secret is set and Vercel sends it."""
+    monkeypatch.setattr(security, "FRONT_DOOR_SECRET", FRONT_DOOR_SECRET)
+
+
+def test_front_door_expects_exactly_two_trusted_hops():
+    """Vercel's edge, then Google's front end."""
+    assert security.FRONT_DOOR_PROXY_HOPS == 2
+    assert security.TRUSTED_PROXY_HOPS == 1
+
+
+def test_through_the_front_door_the_visitor_is_the_identity(front_door):
+    """Not the Vercel edge address, which every visitor shares."""
+    scope = front_door_scope([f"{VISITOR}, {VERCEL_EDGE}"])
+    assert security.client_identity(scope) == VISITOR
+
+
+def test_the_front_door_does_not_collapse_visitors_into_one_bucket(front_door):
+    """The failure this whole mechanism exists to prevent: keying on the
+    right-most entry behind Vercel would count the entire internet as one
+    client, because the right-most entry is always the same edge address."""
+    first = security.client_identity(front_door_scope([f"{VISITOR}, {VERCEL_EDGE}"]))
+    second = security.client_identity(
+        front_door_scope([f"198.51.100.4, {VERCEL_EDGE}"])
+    )
+    assert first != second
+    assert VERCEL_EDGE not in (first, second)
+
+
+def test_a_visitor_cannot_forge_the_extra_hop_through_the_front_door(front_door):
+    """Vercel overwrites the visitor's X-Forwarded-For rather than appending
+    to it, so anything forged arrives to the left of both real entries and
+    the counted position does not move."""
+    forged = front_door_scope([f"9.9.9.9, 1.2.3.4, {VISITOR}, {VERCEL_EDGE}"])
+    assert security.client_identity(forged) == VISITOR
+
+
+def test_a_forged_secret_does_not_buy_the_extra_hop(front_door):
+    """Without the real secret the request is counted as if it came straight
+    to Cloud Run -- so a forged chain resolves to the forger's own address,
+    not to the one they wrote."""
+    forged = front_door_scope([f"9.9.9.9, {VISITOR}"], secret="not-the-secret")
+    assert security.client_identity(forged) == VISITOR
+
+
+def test_a_missing_secret_does_not_buy_the_extra_hop(front_door):
+    forged = front_door_scope([f"9.9.9.9, {VISITOR}"], secret=None)
+    assert security.client_identity(forged) == VISITOR
+
+
+def test_an_unset_secret_trusts_no_front_door_header(monkeypatch):
+    """A variable that never reached the container must not turn into
+    "every request claiming to be from Vercel is believed"."""
+    monkeypatch.setattr(security, "FRONT_DOOR_SECRET", "")
+    forged = front_door_scope([f"9.9.9.9, {VISITOR}"], secret="")
+    assert security.client_identity(forged) == VISITOR
+    assert security._via_front_door(forged) is False
+
+
+def test_the_direct_cloud_run_url_is_not_a_bypass(front_door):
+    """The Cloud Run URL stays public. A visitor sending a forged header to
+    it must still be counted on the address Google's front end appended --
+    otherwise the front door would have opened a way around the limiter."""
+    for forged in ["9.9.9.9", "1.2.3.4, 5.6.7.8", "not-an-ip", ""]:
+        chain = f"{forged}, {VISITOR}" if forged else VISITOR
+        assert security.client_identity(scope_with([chain])) == VISITOR
+
+
+def test_ipv6_through_the_front_door_is_still_counted_per_network(front_door):
+    first = security.client_identity(
+        front_door_scope([f"2001:db8:abcd:1234::1, {VERCEL_EDGE}"])
+    )
+    rotated = security.client_identity(
+        front_door_scope([f"2001:db8:abcd:1234:9999:8888:7777:6666, {VERCEL_EDGE}"])
+    )
+    assert first == rotated == "2001:db8:abcd:1234::/64"
+
+    elsewhere = security.client_identity(
+        front_door_scope([f"2001:db8:abcd:9999::1, {VERCEL_EDGE}"])
+    )
+    assert elsewhere != first
+
+
+def test_a_short_chain_through_the_front_door_falls_back_to_the_peer(front_door):
+    """Two hops are expected; one entry means the request did not arrive the
+    way the front door sends them, so no entry is believed."""
+    assert security.client_identity(front_door_scope([VISITOR])) == "10.0.0.1"
+
+
+def test_the_secret_is_compared_against_every_copy_of_the_header(front_door):
+    """A visitor's forged copy sits alongside Vercel's, not instead of it."""
+    scope = front_door_scope([f"{VISITOR}, {VERCEL_EDGE}"])
+    scope["headers"].insert(0, (security.FRONT_DOOR_HEADER, b"forged"))
+    assert security.client_identity(scope) == VISITOR
+
+
+# ─── RATE LIMITING THROUGH THE FRONT DOOR ─────────────────────────────────────
+def as_front_door(visitor=VISITOR, forged=None):
+    """The headers a request arrives with through Vercel."""
+    chain = f"{visitor}, {VERCEL_EDGE}"
+    if forged is not None:
+        chain = f"{forged}, {chain}"
+    return {
+        "X-Forwarded-For": chain,
+        "x-front-door-secret": FRONT_DOOR_SECRET,
+    }
+
+
+def test_front_door_visitors_each_get_their_own_allowance(client, monkeypatch):
+    """Two people reading the site through Vercel must not share a limit."""
+    monkeypatch.setattr(security, "FRONT_DOOR_SECRET", FRONT_DOOR_SECRET)
+    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
+    server.api_limiter.reset()
+
+    assert client.post(
+        "/api/search", json={"query": "x"}, headers=as_front_door()
+    ).status_code == 200
+    assert client.post(
+        "/api/search", json={"query": "x"}, headers=as_front_door()
+    ).status_code == 429, "the same visitor kept their allowance"
+    assert client.post(
+        "/api/search", json={"query": "x"}, headers=as_front_door("198.51.100.4")
+    ).status_code == 200, "a second visitor was caught by the first one's limit"
+
+
+def test_spoofing_through_the_front_door_cannot_bypass_the_limit(
+    client, monkeypatch
+):
+    monkeypatch.setattr(security, "FRONT_DOOR_SECRET", FRONT_DOOR_SECRET)
+    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (2, 60))
+    server.api_limiter.reset()
+    for _ in range(2):
+        assert client.post(
+            "/api/search", json={"query": "x"}, headers=as_front_door()
+        ).status_code == 200
+
+    for forged in ["9.9.9.9", "1.2.3.4, 8.8.8.8", "not-an-ip"]:
+        blocked = client.post(
+            "/api/search", json={"query": "x"}, headers=as_front_door(forged=forged)
+        )
+        assert blocked.status_code == 429, f"{forged!r} bought another request"
+
+
+def test_a_direct_request_cannot_spend_a_front_door_visitors_allowance(
+    client, monkeypatch
+):
+    """And cannot claim to be one either: without the secret, the chain
+    "<victim>, <edge>" is counted on its right-most entry."""
+    monkeypatch.setattr(security, "FRONT_DOOR_SECRET", FRONT_DOOR_SECRET)
+    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
+    server.api_limiter.reset()
+
+    direct = client.post(
+        "/api/search",
+        json={"query": "x"},
+        headers={"X-Forwarded-For": f"{VISITOR}, {VERCEL_EDGE}"},
+    )
+    assert direct.status_code == 200
+    assert client.post(
+        "/api/search", json={"query": "x"}, headers=as_front_door()
+    ).status_code == 200, "a direct request spent the real visitor's allowance"
