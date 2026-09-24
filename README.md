@@ -1,6 +1,6 @@
 # AI Engineering Portfolio & Technical Blog
 
-Live portfolio: <https://ai-portfolio-lth7txqmoq-uc.a.run.app>
+Live portfolio: <https://keithgregory.vercel.app>
 
 Personal site for Keith Gregory: building, evaluating, and documenting AI
 systems across RAG and retrieval, agents and tool use, guardrails, and
@@ -25,7 +25,8 @@ sentence-transformers semantic search over content + blog    search.py
 Starlette middleware  security headers, rate + size limits   security.py
 Environment settings  one variable: APP_ENV                  config.py
 pytest                route, blog, search, security tests    tests/
-Container image       CPU PyTorch + baked model, Cloud Run   Dockerfile
+Vercel function       CPU PyTorch + baked model, the host    vercel.json
+Container image       the same app, kept as a fallback       Dockerfile
 ```
 
 Request flow:
@@ -162,8 +163,9 @@ One environment variable decides the difference, and it is never set locally:
 | `Strict-Transport-Security` | not sent | sent, one year |
 | everything else | identical | identical |
 
-Set in `Dockerfile`; `.env.example` lists it. The app reads real environment
-variables, so `.env` is only for your own shell and is never required.
+Set on the Vercel project, and in the `Dockerfile` for the container build;
+`.env.example` lists it. The app reads real environment variables, so `.env`
+is only for your own shell and is never required.
 
 ### What the app defends itself with
 
@@ -180,13 +182,16 @@ variables, so `.env` is only for your own shell and is never required.
   20/minute on `/api/search` (it runs embedding inference) and 40/minute on
   `/api/chat` (keyword matching, cheaper). Over the limit is a `429` with
   `Retry-After`, which the page reports as a rate limit rather than a
-  failure. Pages are never throttled. The counters live in the process, which
-  is exactly right for a deployment capped at one instance; more than one
-  instance would mean each enforcing its own separate allowance.
+  failure. Pages are never throttled. The counters live in the process, so
+  each running instance enforces its own allowance. On a serverless platform
+  that means the limit is per instance rather than global -- a deliberate
+  trade-off, since a shared counter would mean a Redis this site does not
+  otherwise need. It still bounds what one client can drive on the instance
+  serving it, which is what protects the inference.
 - **Request bounds.** Both endpoints take one string of at most 500
   characters. A body over 16 KB is refused with `413` before it is read.
   Empty, blank, wrong-typed, over-long and malformed-JSON bodies all return
-  `422`. Cloud Run additionally caps a request body at 32 MB.
+  `422`. The platform caps a request body at 4.5 MB before the app sees it.
 - **A pinned model.** `search.py` names the model in full and pins it to one
   commit of its Hugging Face repository, with `trust_remote_code` off so no
   code from that repository is ever executed. The weights are downloaded into
@@ -195,24 +200,47 @@ variables, so `.env` is only for your own shell and is never required.
 
 ## Deployment
 
-Google Cloud Run, from the `Dockerfile` in this repository.
+Vercel, which runs the FastAPI application itself. There is no proxy and no
+second runtime: a request is served by the app, on Vercel, and nowhere else.
 
 | | |
 |---|---|
-| Build | `gcloud run deploy --source .` (Cloud Build reads the Dockerfile) |
-| Region | `us-central1` |
-| Start | `uvicorn server:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'` |
-| Health check | `/` |
-| CPU / memory | 1 vCPU, 2 GiB (measured peak ~450 MB: PyTorch ~200 MB, model and app the rest) |
-| Instances | min 0, max 1 -- scales to zero when idle |
-| Billing | request-based, so CPU is charged only while serving |
-| Environment | `APP_ENV=production`, `HF_HUB_OFFLINE=1` (both set in the image) |
-| Persistent disk | none; the image carries the model |
+| Build | `git push origin main` (Vercel builds from this repository) |
+| Entry point | `server.py`, whose `app` Vercel's Python runtime loads directly |
+| Runtime | Python 3.12 (`.python-version`), Fluid compute, region `iad1` |
+| CPU / memory | 1 vCPU, 2 GB |
+| Max duration | 300 s, which the slowest cold search uses about 5% of |
+| Instances | scale to zero when idle |
+| Environment | `APP_ENV=production`, `HF_HUB_OFFLINE=1` (set on the project) |
+| Persistent disk | none; the bundle carries the model |
 
-The image installs the CPU build of PyTorch from PyTorch's own index. The
-default PyPI wheel brings roughly 2 GB of CUDA libraries that a CPU instance
-cannot use. CI installs the same CPU wheel, so tests run against what
-production runs.
+Two things in `vercel.json` do the work the `Dockerfile` does for a container:
+
+- `installCommand` pins the **CPU build of PyTorch** from PyTorch's own index.
+  The default PyPI wheel brings roughly 2 GB of CUDA libraries that no
+  function can use, and would not fit in any case.
+- `buildCommand` runs `vercel_build.py`, which **bakes the pinned model into
+  the bundle**. A function's filesystem is read-only apart from `/tmp`, and
+  `/tmp` does not survive between instances, so the weights have to be
+  written at build time. The script also flattens the Hugging Face cache's
+  symlinks -- they do not survive bundling -- and refuses to finish unless the
+  result loads again with `HF_HUB_OFFLINE=1` in a fresh interpreter.
+
+Dependencies and weights come to about 1.4 GB unpacked, past the 500 MB
+standard limit for a Python function, so Vercel places it on the large-function
+path automatically. CI installs the same CPU wheel and runs the same build
+script, so tests run against what production runs.
+
+Static assets live in `assets/`, not `public/`: Vercel treats a root-level
+`public/` as a CDN directory, and CDN-served files bypass the application --
+which would mean serving the stylesheet and the script without the security
+headers below.
+
+### The container, and why it is still here
+
+`Dockerfile` builds the same application for Google Cloud Run, which hosted
+the site before this and is kept as a rollback target. CI still builds and
+starts that image on every push, so the fallback cannot rot unnoticed.
 
 ### Which client address is trusted
 
@@ -231,10 +259,18 @@ home connection is handed a whole /64 and its host bits rotate on their own
 unlimited supply of allowances. IPv4 is counted per address.
 
 `TRUSTED_PROXY_HOPS = 1` says one proxy in front of the app may be believed.
-That is true on Cloud Run, where nothing can reach the container except
-through Google's front end. Exposing this app's port directly would make the
-header forgeable again, so the assumption is pinned by a test rather than
-left in a comment. With no header at all, the socket peer is used.
+That is true on Vercel, which sets `X-Forwarded-For` to the client's address
+and discards whatever the client sent -- so the header arrives with one entry
+and that entry is not the visitor's to choose. It was equally true on Cloud
+Run, where nothing reaches the container except through Google's front end.
+Exposing this app's port directly would make the header forgeable again, so
+the assumption is pinned by a test rather than left in a comment. With no
+header at all, the socket peer is used.
+
+Checked against the running site rather than assumed: fill the window to the
+limit, then replay it with `X-Forwarded-For`, `X-Real-IP`, `Forwarded`,
+`X-Client-IP` and the `X-Vercel-*` forwarding headers all forged. Every
+variant still returns `429`.
 
 ## Philosophy
 
