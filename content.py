@@ -12,6 +12,12 @@ resume material outside the repository.
 Leave a TODO rather than inventing a value that is not known yet.
 """
 
+# The public address of the site. Link previews and canonical URLs must be
+# absolute, and they always name production -- never the host a request
+# happened to arrive on, which for a Vercel preview deployment would be a
+# preview hostname.
+SITE_URL = "https://keithgregory.vercel.app"
+
 PROFILE = {
     "name": "Keith Gregory",
     # The one-line positioning for the whole site: page titles, hero, metadata.

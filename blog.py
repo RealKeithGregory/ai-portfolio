@@ -9,6 +9,7 @@ Articles live in content/blog/*.md with a YAML front matter block:
     description: "One or two sentences shown in listings."
     tags: [AI Engineering, Career]
     github_url: https://github.com/...   # optional
+    social_subtitle: "One short line."   # optional, social card only
     ---
 
 Adding a post is adding a file; no Python changes are needed. Run
@@ -26,6 +27,9 @@ import yaml
 
 
 BLOG_DIR = Path(__file__).parent / "content" / "blog"
+# Each post's social card, rendered by tools/make_social_card.py and served
+# from /static like the rest of assets/.
+SOCIAL_CARD_DIR = Path(__file__).parent / "assets" / "images" / "social" / "blog"
 REQUIRED_FIELDS = ("title", "slug", "date", "description", "tags")
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 WORDS_PER_MINUTE = 200
@@ -48,6 +52,7 @@ class Post:
     body_html: str
     reading_minutes: int
     github_url: str | None = None
+    social_image: str | None = None
     source_path: Path | None = None
     extra: dict = field(default_factory=dict)
 
@@ -126,12 +131,21 @@ def parse_post(raw, source_path=None):
     )
 
 
+def social_image_url(slug, card_dir=SOCIAL_CARD_DIR):
+    """URL of the post's own social card, or None when it has not been
+    rendered. None is not an error: the page falls back to the site card."""
+    if (Path(card_dir) / f"{slug}.png").is_file():
+        return f"/static/images/social/blog/{slug}.png"
+    return None
+
+
 def load_posts(blog_dir=BLOG_DIR):
     """Load every post under blog_dir, newest first. Raises BlogError on bad posts."""
     posts = []
     seen = {}
     for path in sorted(Path(blog_dir).glob("*.md")):
         post = parse_post(path.read_text(encoding="utf-8"), source_path=path)
+        post.social_image = social_image_url(post.slug)
         if post.slug in seen:
             raise BlogError(
                 f"duplicate slug {post.slug!r} in {path.name} and {seen[post.slug].name}"

@@ -2,6 +2,10 @@
 {% set active = 'blog' %}
 {% block title %}{{ post.title }} · {{ profile.name }}{% endblock %}
 {% block description %}{{ post.description }}{% endblock %}
+{# Previews show the bare title; the site name travels in og:site_name. #}
+{% block social_title %}{{ post.title }}{% endblock %}
+{% block og_type %}<meta property="og:type" content="article">
+  <meta property="article:published_time" content="{{ post.date.isoformat() }}">{% endblock %}
 
 {% block content %}
 <article class="article">

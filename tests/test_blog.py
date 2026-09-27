@@ -99,6 +99,15 @@ def test_reading_time_rounds_up():
     assert blog.reading_minutes("word " * 201) == 2
 
 
+def test_social_image_is_found_by_slug(tmp_path):
+    (tmp_path / "a-post.png").write_bytes(b"card")
+    assert blog.social_image_url("a-post", tmp_path) == "/static/images/social/blog/a-post.png"
+
+
+def test_missing_social_image_is_none_not_an_error(tmp_path):
+    assert blog.social_image_url("a-post", tmp_path) is None
+
+
 def test_first_article_keeps_its_own_career_context(posts):
     """The portfolio brands AI-first, but the article is allowed to explain the
     QA background that led there. This guards against a future content pass

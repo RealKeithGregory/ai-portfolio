@@ -95,6 +95,7 @@ tags:
   - RAG
   - Evaluation
 github_url: https://github.com/RealKeithGregory/...  # optional
+social_subtitle: "One short line for the social card."  # optional
 ---
 
 Article body in Markdown. Fenced code blocks and tables are supported.
@@ -104,6 +105,26 @@ Rules enforced by `blog.py` (and by the tests):
 
 - `title`, `slug`, `date` (YYYY-MM-DD), `description`, and `tags` are required
 - `slug` is lowercase words joined by hyphens and must be unique
+- every post has its own social card (below)
+
+### Social cards
+
+A link shared on LinkedIn, Facebook or X shows the page's social card: a
+1200×630 PNG named by the page's Open Graph tags, which `base.html` writes
+for every page. Render a post's card after writing the post:
+
+```bash
+pip install -r requirements-tools.txt && playwright install chromium   # once
+python tools/make_social_card.py <slug>
+```
+
+The card takes the post's title, its first tag as the label, and
+`social_subtitle` if present, and is written to
+`assets/images/social/blog/<slug>.png`. Commit it with the post. Every other
+page uses the site card, `assets/images/social/site.png`
+(`python tools/make_social_card.py --site`). A post whose card is missing
+falls back to the site card rather than breaking, and the tests fail until
+the card exists.
 
 **Article Markdown is trusted content.** Posts come from this repository and
 are never accepted from a visitor or any other external source. The rendered

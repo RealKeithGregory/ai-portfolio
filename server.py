@@ -21,6 +21,7 @@ import security
 
 BASE_DIR = Path(__file__).parent
 RECENT_POSTS_ON_HOME = 2
+SITE_SOCIAL_IMAGE = "/static/images/social/site.png"
 
 
 @asynccontextmanager
@@ -66,12 +67,27 @@ def asset_version():
     return str(int(max(f.stat().st_mtime for f in files)))
 
 
+def social_card(post=None):
+    """The image a link preview shows. A post uses its own card when it has
+    one; every other page, and a post whose card is missing, gets the site
+    card, so a preview never points at an image that does not exist."""
+    if post is not None and post.social_image:
+        path, alt = post.social_image, f"{post.title} — {content.PROFILE['name']}"
+    else:
+        path, alt = SITE_SOCIAL_IMAGE, f"{content.PROFILE['name']} — {content.PROFILE['headline']}"
+    return {"url": content.SITE_URL + path, "alt": alt}
+
+
 def page_context(request: Request, **extra):
     """Context shared by every template, plus page-specific values."""
     return {
         "request": request,
         "profile": content.PROFILE,
         "asset_version": asset_version(),
+        # The canonical address of this page. The path alone, so a shared
+        # link's ?utm_source=... never becomes part of it.
+        "page_url": content.SITE_URL + request.url.path,
+        "social_card": social_card(),
         **extra,
     }
 
@@ -103,7 +119,7 @@ async def blog_post(request: Request, slug: str):
     if post is None:
         raise HTTPException(status_code=404, detail="Article not found")
     return templates.TemplateResponse(
-        request, "blog-post.html", page_context(request, post=post)
+        request, "blog-post.html", page_context(request, post=post, social_card=social_card(post))
     )
 
 
@@ -112,6 +128,7 @@ async def http_error(request: Request, exc: StarletteHTTPException):
     return templates.TemplateResponse(
         request,
         "404.html" if exc.status_code == 404 else "error.html",
-        page_context(request, status_code=exc.status_code, detail=exc.detail),
+        # An error page is not a real address, so it declares no canonical URL.
+        page_context(request, status_code=exc.status_code, detail=exc.detail, page_url=None),
         status_code=exc.status_code,
     )

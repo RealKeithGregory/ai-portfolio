@@ -72,7 +72,7 @@ jobs:
           done
           status() { curl -sS -o /dev/null -w '%{http_code}' "$@"; }
           echo "--- pages and assets ---"
-          for path in / /blog /static/css/styles.css /static/js/site.js; do
+          for path in / /blog /static/css/styles.css /static/js/site.js /static/images/social/site.png; do
             test "$(status http://127.0.0.1:8000$path)" = "200" || { echo "$path"; exit 1; }
           done
           test "$(status http://127.0.0.1:8000/not-a-page)" = "404"

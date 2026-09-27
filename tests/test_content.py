@@ -66,9 +66,10 @@ def test_content_module_exposes_only_approved_fields():
     pinned to an exact set of fields."""
     assert set(content.PROFILE) == APPROVED_PROFILE_FIELDS
     assert set(content.PROFILE["links"]) == APPROVED_LINK_FIELDS
-    # No separate history structure alongside the approved ones.
+    # No separate history structure alongside the approved ones. SITE_URL is
+    # the site's own public address, used by canonical and link-preview tags.
     public_names = {n for n in vars(content) if n.isupper()}
-    assert public_names == {"PROFILE", "SKILL_GROUPS"}
+    assert public_names == {"PROFILE", "SKILL_GROUPS", "SITE_URL"}
     values = repr([content.PROFILE, content.SKILL_GROUPS])
     assert DATE_RANGE.search(values) is None
 
