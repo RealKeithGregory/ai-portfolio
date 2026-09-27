@@ -2,14 +2,14 @@
 
 Live portfolio: <https://keithgregory.vercel.app>
 
-Personal site for Keith Gregory: building, evaluating, and documenting AI
-systems across RAG and retrieval, agents and tool use, guardrails, and
-observability, with a growing focus on financial AI. It has two jobs:
+Personal site for Keith Gregory, focused on building reliable AI systems:
+evaluation, RAG and retrieval, agentic systems and tool use, guardrails, and
+observability. It has two parts:
 
-1. **Portfolio**. A fast technical overview: what is being built, how it will
-   be evaluated, and where the evidence lives.
-2. **Blog**. Markdown articles with the detailed reasoning, failures, and
-   lessons that do not fit on a project card.
+1. **Homepage**. A short overview: focus areas, skills, about, and contact,
+   with the latest writing near the top.
+2. **Blog**. Markdown articles on what I am learning about building and
+   evaluating AI systems.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ FastAPI               routing, lifespan                      server.py
 Jinja2 templates      server-rendered pages                  templates/
 Vanilla HTML/CSS/JS   one stylesheet, one script, no build   assets/
 Markdown + YAML       blog articles with front matter        content/blog/
-Python data           canonical profile/projects/skills      content.py
+Python data           canonical profile and skills           content.py
 Starlette middleware  security headers                       security.py
 Environment settings  one variable: APP_ENV                  config.py
 pytest                route, blog, content, security tests   tests/
@@ -27,8 +27,9 @@ Vercel function       the host; FastAPI preset, no build     requirements.txt
 
 Request flow:
 
-- `GET /` renders `templates/index.html` from `content.py` and the three most
-  recent posts.
+- `GET /` renders `templates/index.html` from `content.py` and the two most
+  recent posts. With no posts, the Writing section is left out rather than
+  shown empty.
 - `GET /blog` and `GET /blog/{slug}` render posts loaded by `blog.py`.
   Unknown slugs return a real 404.
 
@@ -63,11 +64,12 @@ python -m pytest -q
 
 The suite starts the app once and covers:
 
-- routes: homepage, blog index, article, 404s, static assets, navigation
+- routes: homepage and its section order, blog index, article, 404s, static
+  assets, navigation
 - blog: Markdown parsing, required front matter, invalid dates/slugs,
-  duplicate slugs, related-project validation, ordering, reading time
+  duplicate slugs, ordering, reading time
 - content: no placeholder URLs in rendered pages, the profile exposes an exact
-  set of fields, project definitions are consistent
+  set of fields, skills keep the foundation and in-development groups apart
 - boundaries: the app serves only its declared routes, and pages link only
   to approved destinations
 - security: the response headers, that the templates contain nothing the CSP
@@ -85,14 +87,13 @@ Create `content/blog/<slug>.md`:
 
 ```markdown
 ---
-title: "Evaluating Retrieval in the Knowledge Base Assistant"
+title: "What Evaluating Retrieval Taught Me"
 slug: "evaluating-retrieval"
 date: "2026-10-15"
 description: "One or two sentences shown in listings."
 tags:
   - RAG
   - Evaluation
-related_project: agentic-knowledge-base-assistant   # optional: a slug from content.py
 github_url: https://github.com/RealKeithGregory/...  # optional
 ---
 
@@ -103,7 +104,6 @@ Rules enforced by `blog.py` (and by the tests):
 
 - `title`, `slug`, `date` (YYYY-MM-DD), `description`, and `tags` are required
 - `slug` is lowercase words joined by hyphens and must be unique
-- `related_project`, if set, must match a project slug in `content.py`
 
 **Article Markdown is trusted content.** Posts come from this repository and
 are never accepted from a visitor or any other external source. The rendered
@@ -115,22 +115,19 @@ on the site comes from a visitor, and the CSP blocks inline script regardless.
 If articles ever come from somewhere else, that is the point to add a
 sanitizer.
 
-Posts are loaded once at startup. With the run command above
-the server restarts itself when a `.md` or `.html` file changes; without the
-`--reload-include` flags, restart it by hand after editing content.
-The article appears on `/blog`, on the homepage (if it is one of the three
-newest), and (when `related_project` is set) as an
-"Article" link on that project's card.
+Posts are loaded once at startup. With the run command above the server
+restarts itself when a `.md` or `.html` file changes; without the
+`--reload-include` flags, restart it by hand after editing content. The
+article appears on `/blog` and, if it is one of the two newest, on the
+homepage.
 
 ### Editing portfolio content
 
-Everything the site says about its focus areas, skills, and projects is in
-`content.py`. Project entries follow a case-study shape (problem,
-architecture, implementation, evaluation, failure modes, results,
-improvements) plus `evidence` links. Leave a section out rather than guessing;
-planned projects list the evaluation questions they must answer instead of
-results. Projects are grouped by `category` into core and supporting work.
-`TODO` comments mark links that are not known yet.
+Everything the homepage says about focus areas, skills, and background is in
+`content.py`. Skills are split into two groups on purpose: an established
+engineering foundation, and the AI engineering areas currently being
+developed. Leave a value out rather than guessing; a `TODO` marks something
+not known yet.
 
 This site is a portfolio, not a resume: `content.py` deliberately holds no
 employment history, meaning no employer names, job titles, dates, or duties. Anything
@@ -147,8 +144,9 @@ One environment variable decides the difference, and it is never set locally:
 | `Strict-Transport-Security` | not sent | sent, one year |
 | everything else | identical | identical |
 
-Set on the Vercel project; `.env.example` lists it. The app reads real environment variables, so `.env`
-is only for your own shell and is never required.
+Set on the Vercel project; `.env.example` lists it. The app reads real
+environment variables, so `.env` is only for your own shell and is never
+required.
 
 ### What the app defends itself with
 

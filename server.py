@@ -20,7 +20,7 @@ import content
 import security
 
 BASE_DIR = Path(__file__).parent
-RECENT_POSTS_ON_HOME = 3
+RECENT_POSTS_ON_HOME = 2
 
 
 @asynccontextmanager
@@ -59,15 +59,6 @@ def emphasize(text):
 templates.env.filters["emphasize"] = emphasize
 
 
-def articles_by_project(posts):
-    """Map project slug -> posts whose front matter names it as related_project."""
-    related = {}
-    for post in posts:
-        if post.related_project:
-            related.setdefault(post.related_project["slug"], []).append(post)
-    return related
-
-
 def asset_version():
     """Newest mtime of the static assets, appended to their URLs so browsers
     never keep a stale stylesheet or script after an edit."""
@@ -94,12 +85,7 @@ async def homepage(request: Request):
         page_context(
             request,
             skill_groups=content.SKILL_GROUPS,
-            project_categories=content.PROJECT_CATEGORIES,
-            projects_in_category=content.projects_in_category,
-            case_study_sections=content.CASE_STUDY_SECTIONS,
-            status_labels=content.STATUS_LABELS,
             recent_posts=request.app.state.posts[:RECENT_POSTS_ON_HOME],
-            articles_by_project=articles_by_project(request.app.state.posts),
         ),
     )
 

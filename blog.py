@@ -8,8 +8,7 @@ Articles live in content/blog/*.md with a YAML front matter block:
     date: "2026-09-21"
     description: "One or two sentences shown in listings."
     tags: [AI Engineering, Career]
-    related_project: agentic-knowledge-base-assistant   # optional, a slug from content.PROJECTS
-    github_url: https://github.com/...                   # optional
+    github_url: https://github.com/...   # optional
     ---
 
 Adding a post is adding a file; no Python changes are needed. Run
@@ -25,7 +24,6 @@ from pathlib import Path
 import markdown
 import yaml
 
-import content
 
 BLOG_DIR = Path(__file__).parent / "content" / "blog"
 REQUIRED_FIELDS = ("title", "slug", "date", "description", "tags")
@@ -49,7 +47,6 @@ class Post:
     body_markdown: str
     body_html: str
     reading_minutes: int
-    related_project: dict | None = None
     github_url: str | None = None
     source_path: Path | None = None
     extra: dict = field(default_factory=dict)
@@ -110,18 +107,10 @@ def parse_post(raw, source_path=None):
     if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
         raise BlogError(f"tags must be a list of strings{where}")
 
-    related_project = None
-    if meta.get("related_project"):
-        related_project = content.get_project(str(meta["related_project"]))
-        if related_project is None:
-            raise BlogError(
-                f"related_project {meta['related_project']!r} is not a project slug{where}"
-            )
-
     if not body.strip():
         raise BlogError(f"post body is empty{where}")
 
-    known = set(REQUIRED_FIELDS) | {"related_project", "github_url"}
+    known = set(REQUIRED_FIELDS) | {"github_url"}
     return Post(
         title=str(meta["title"]),
         slug=slug,
@@ -131,7 +120,6 @@ def parse_post(raw, source_path=None):
         body_markdown=body,
         body_html=render_markdown(body),
         reading_minutes=reading_minutes(body),
-        related_project=related_project,
         github_url=str(meta["github_url"]) if meta.get("github_url") else None,
         source_path=source_path,
         extra={k: v for k, v in meta.items() if k not in known},

@@ -54,20 +54,27 @@ def test_homepage_renders(client):
 
 
 def test_homepage_shows_recent_posts_but_not_full_articles(client, posts):
+    import server
+
     r = client.get("/")
-    for post in posts[:3]:
+    shown = posts[: server.RECENT_POSTS_ON_HOME]
+    for post in shown:
         assert post.title in r.text
         assert post.url in links_in(r.text)
+    # At most two previews, and never more than exist.
+    assert r.text.count('class="post-card') == len(shown) <= 2
     # The article body itself must only appear on the article page.
     assert "<div class=\"article-body\">" not in r.text
 
 
-def test_homepage_project_anchors_exist(client):
-    import content
+def test_homepage_sections_appear_in_order(client):
+    """Hero, Writing, Focus, Skills, About, Contact -- and nothing else. A
+    section cannot be added, dropped or reordered without this test noticing."""
+    import re
 
-    r = client.get("/")
-    for project in content.PROJECTS:
-        assert f'id="project-{project["slug"]}"' in r.text
+    html = client.get("/").text
+    sections = re.findall(r'<section id="([\w-]+)"', html)
+    assert sections == ["hero", "writing", "focus", "skills", "about", "contact"]
 
 
 def test_blog_index_lists_every_post(client, posts):
@@ -151,7 +158,7 @@ def test_static_assets_are_served(client):
 def test_every_page_has_primary_navigation(client, posts):
     for path in ["/", "/blog", posts[0].url]:
         hrefs = links_in(client.get(path).text)
-        for target in ["/#projects", "/blog", "/#about", "/#contact"]:
+        for target in ["/blog", "/#about", "/#contact"]:
             assert target in hrefs, f"{target} missing from nav on {path}"
         assert "https://github.com/RealKeithGregory" in hrefs, f"GitHub missing on {path}"
 
@@ -164,4 +171,4 @@ def test_navigation_contains_exactly_the_approved_items(client):
     html = client.get("/").text
     nav = html.split('<ul class="nav-links"', 1)[1].split("</ul>", 1)[0]
     labels = [re.sub(r"<[^>]+>", "", item).strip() for item in re.findall(r"<li>.*?</li>", nav, re.S)]
-    assert labels == ["Projects", "Blog", "About", "GitHub", "Contact"]
+    assert labels == ["Blog", "About", "GitHub", "Contact"]

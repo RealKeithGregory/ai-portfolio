@@ -12,7 +12,6 @@
   --green:     #00ffb4;
   --green-dim: rgba(0,255,180,0.15);
   --blue:      #00b4ff;
-  --orange:    #ff6b35;
   --text:      #c9d8e8;   /* body prose            13.0:1 on --bg2 */
   --text-secondary: #9fb3c4;  /* supporting prose  8.8:1 on --bg2 */
   --text-dim:  #93a8b8;   /* metadata, labels       7.7:1 on --bg2 */
@@ -59,12 +58,10 @@ body::after {
   z-index: 1;
 }
 
-/* Inline links inside prose. Component links (nav, buttons, project and
-   contact links) style themselves and are unaffected by this rule. */
+/* Inline links inside prose. Component links (nav, buttons and contact
+   links) style themselves and are unaffected by this rule. */
 .section-sub a,
 .about-text a,
-.case-section a,
-.project-desc a,
 .log-text a,
 .article-body a {
   color: var(--blue);
@@ -74,8 +71,6 @@ body::after {
 
 .section-sub a:hover,
 .about-text a:hover,
-.case-section a:hover,
-.project-desc a:hover,
 .log-text a:hover,
 .article-body a:hover { color: var(--green); }
 
@@ -360,11 +355,8 @@ nav {
   overflow-x: auto;
 }
 
-.t-comment { color: #3d6b5a; }
 .t-key { color: var(--blue); }
-.t-val { color: var(--orange); }
 .t-str { color: var(--green); }
-.t-num { color: #c792ea; }
 .t-brace { color: #89ddff; }
 .t-cursor {
   display: inline-block;
@@ -414,131 +406,7 @@ nav {
   margin-bottom: 56px;
 }
 
-/* ─── PROJECTS ──────────────────────────────────────────────── */
-#projects { background: var(--bg2); }
-
-/* Flex instead of grid so a short last row is centred (5 cards → 3 + 2). */
-.project-group + .project-group { margin-top: 64px; }
-
-.project-group-title {
-  font-family: var(--font-head);
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--white);
-  margin-bottom: 6px;
-}
-
-.project-group-sub {
-  font-size: 0.9rem;
-  line-height: 1.7;
-  color: var(--text-secondary);
-  max-width: 68ch;
-  margin-bottom: 24px;
-}
-
-.projects-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 24px;
-  align-items: flex-start; /* an expanded case study should not stretch its neighbours */
-}
-
-.project-card {
-  flex: 1 1 320px;
-  max-width: calc((100% - 48px) / 3); /* three per row, same width as before */
-}
-
-@media (max-width: 1072px) {
-  .project-card { max-width: calc((100% - 24px) / 2); }
-}
-
-@media (max-width: 768px) {
-  .project-card { max-width: 100%; }
-}
-
-.project-card {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
-  transition: all 0.3s;
-  position: relative;
-  overflow: hidden;
-}
-
-.project-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--green), var(--blue));
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s;
-}
-
-.project-card:hover {
-  border-color: rgba(0,255,180,0.3);
-  transform: translateY(-4px);
-  box-shadow: 0 20px 50px rgba(0,0,0,0.4), var(--glow);
-}
-
-.project-card:hover::before { transform: scaleX(1); }
-
-.project-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 14px;
-}
-
-.project-icon {
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.project-status {
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1px solid;
-}
-
-.status-live { color: var(--green); border-color: var(--green); background: rgba(0,255,180,0.08); }
-.status-built { color: var(--blue); border-color: var(--blue); background: rgba(0,180,255,0.08); }
-.status-planned { color: var(--orange); border-color: var(--orange); background: rgba(255,107,53,0.08); }
-
-.project-title {
-  font-family: var(--font-head);
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--white);
-  margin-bottom: 8px;
-}
-
-.project-desc {
-  font-size: 0.9rem;
-  line-height: 1.7;
-  color: var(--text);
-  margin-bottom: 20px;
-}
-
-.project-learned {
-  font-size: 0.75rem;
-  color: var(--green);
-  line-height: 1.7;
-  margin-bottom: 20px;
-  padding: 10px 14px;
-  background: var(--green-dim);
-  border-left: 2px solid var(--green);
-  border-radius: 0 4px 4px 0;
-}
-
-.project-learned strong { display: block; margin-bottom: 4px; opacity: 0.7; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; }
-
+/* ─── TAGS (post cards, focus areas, skills) ─────────────── */
 .tech-tags {
   display: flex;
   flex-wrap: wrap;
@@ -557,92 +425,6 @@ nav {
   padding: 3px 10px;
   border-radius: 3px;
 }
-
-.project-links {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-/* Case study — native <details> so it works with keyboard and touch */
-.case-study {
-  margin-bottom: 20px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: rgba(0,0,0,0.2);
-}
-
-.case-study summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 10px 14px;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--green);
-}
-
-.case-study summary::-webkit-details-marker { display: none; }
-.case-study summary::before { content: '+ '; }
-.case-study[open] summary::before { content: '− '; }
-
-.case-study-body { padding: 4px 14px 14px; }
-
-.case-section { margin-top: 12px; }
-
-.case-section h5 {
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 4px;
-}
-
-.case-section p,
-.case-section li {
-  font-size: 0.875rem;
-  line-height: 1.7;
-  color: var(--text);
-}
-
-.case-section ul { padding-left: 18px; }
-
-.proj-link.article,
-.proj-link.evidence {
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.proj-link.article:hover,
-.proj-link.evidence:hover { border-color: var(--blue); color: var(--blue); }
-
-.proj-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.proj-link.live {
-  background: var(--green);
-  color: var(--bg);
-  font-weight: 700;
-}
-
-.proj-link.live:hover { background: #00e6a0; }
-
-.proj-link.github {
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.proj-link.github:hover { border-color: var(--green); color: var(--green); }
 
 /* ─── SKILLS ────────────────────────────────────────────────── */
 .skills-grid {
@@ -695,13 +477,6 @@ nav {
   margin-bottom: 18px;
 }
 
-.about-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 20px;
-}
-
 /* ─── AI ENGINEERING FOCUS ──────────────────────────────── */
 #focus { background: var(--bg2); }
 
@@ -717,8 +492,8 @@ nav {
   padding: 8px 16px;
 }
 
-/* ─── BLOG (home section + index page) ──────────────────── */
-#blog { background: var(--bg); }
+/* ─── WRITING (home section) + BLOG (index page) ──────────────────── */
+#writing { background: var(--bg); }
 
 .log-grid {
   display: grid;
@@ -726,7 +501,6 @@ nav {
   gap: 20px;
 }
 
-.log-entry,
 .post-card {
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -735,7 +509,6 @@ nav {
   transition: border-color 0.2s;
 }
 
-.log-entry:hover,
 .post-card:hover { border-color: rgba(0,255,180,0.3); }
 
 .post-card { display: flex; flex-direction: column; }
@@ -924,29 +697,6 @@ nav {
   color: var(--text);
 }
 
-/* ─── GITHUB STRIP ──────────────────────────────────────────── */
-.github-strip {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
-  margin-top: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.github-strip h3 {
-  font-family: var(--font-head);
-  font-size: 1.1rem;
-  color: var(--white);
-  margin-bottom: 6px;
-}
-
-.github-strip p { font-size: 0.875rem; line-height: 1.7; color: var(--text-secondary); }
-
 /* ─── CONTACT ───────────────────────────────────────────────── */
 /* The card is centred on the page; its contents read left-to-right. */
 #contact .section-tag { justify-content: flex-start; }
@@ -1029,15 +779,13 @@ footer span { color: var(--green); }
   transform: translateY(0);
 }
 
-/* Stagger classes. These replace inline style="transition-delay:..."
-   attributes so the Content-Security-Policy can forbid inline styles
-   outright. They must stay after .fade-up, whose `transition` shorthand
+/* Stagger class. It replaces an inline style="transition-delay:..."
+   attribute so the Content-Security-Policy can forbid inline styles
+   outright. It must stay after .fade-up, whose `transition` shorthand
    resets the delay. */
-.delay-0 { transition-delay: 0s; }
-.delay-1 { transition-delay: 0.1s; }
 .delay-2 { transition-delay: 0.2s; }
 
-/* Shown on the homepage and /blog while no articles are published. */
+/* Shown on /blog while no articles are published. */
 .empty-note { font-size: 0.9rem; color: var(--text-secondary); padding: 20px 0; }
 
 /* ─── ACCESSIBILITY ─────────────────────────────────────── */
@@ -1088,9 +836,6 @@ footer span { color: var(--green); }
     padding: 14px 4px;
     border-bottom: 1px solid var(--border);
   }
-
-  /* Comfortable touch targets on phones and tablets. */
-  .proj-link { min-height: 44px; }
 }
 
 /* Small phones (430px and below). Above this the 768px rules apply. */
@@ -1103,12 +848,9 @@ footer span { color: var(--green); }
   .contact-card { padding: 36px 22px; }
   .contact-link { width: 100%; justify-content: center; }
 
-  .project-card { padding: 22px; }
   .hero-ctas { flex-direction: column; align-items: stretch; }
   .hero-ctas .btn-primary,
   .hero-ctas .btn-outline { text-align: center; }
-
-  .github-strip { flex-direction: column; align-items: flex-start; gap: 16px; }
 
   /* Keep code readable rather than shrinking it; the block scrolls instead. */
   .article-body pre { font-size: 0.8rem; padding: 14px 16px; }
@@ -1134,10 +876,7 @@ footer span { color: var(--green); }
 /* ═══ CENTERED PAGE VARIANT ═══════════════════════════════════════════
    Applied via .centered-page on <main>, which the homepage and the /blog
    listing opt into. Full blog articles do not, so their prose stays left
-   aligned.
-
-   Centering presentation, not reading. Case-study detail stays left
-   aligned on purpose and is called out below. */
+   aligned: centering is for presentation, not reading. */
 
 /* Section headers: the eyebrow rule is mirrored so the label sits on a real
    centre line rather than just being centre-aligned text. */
@@ -1184,54 +923,6 @@ footer span { color: var(--green); }
   margin-inline: auto;
 }
 
-/* ─── Projects ─── */
-.centered-page .project-group-title,
-.centered-page .project-group-sub { text-align: center; }
-
-.centered-page .project-group-sub {
-  max-width: min(60ch, 100%);
-  margin-inline: auto;
-}
-
-/* Icon above a centred status badge, instead of icon-left / status-right. */
-.centered-page .project-header {
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.centered-page .project-title { text-align: center; }
-
-.centered-page .project-desc {
-  text-align: center;
-  max-width: min(46ch, 100%);
-  margin-inline: auto;
-}
-
-.centered-page .tech-tags,
-.centered-page .project-links,
-.centered-page .case-study summary { justify-content: center; }
-
-.centered-page .case-study summary { text-align: center; }
-
-/* HYBRID: the card presentation is centred, but Problem / Architecture /
-   Evaluation and the evaluation questions are dense technical prose and a
-   bulleted list. Centring those hurts scanning, so the detail block stays
-   left aligned inside the centred card. */
-.centered-page .case-study-body { text-align: left; }
-.centered-page .case-section ul { text-align: left; }
-
-.centered-page .github-strip {
-  flex-direction: column;
-  text-align: center;
-  gap: 18px;
-}
-
-.centered-page .github-strip p {
-  max-width: min(60ch, 100%);
-  margin-inline: auto;
-}
-
 /* ─── Blog previews: homepage section and the /blog listing ─── */
 
 /* auto-fit collapses empty tracks, so a single card centres under the
@@ -1272,8 +963,6 @@ footer span { color: var(--green); }
   margin-inline: auto;
 }
 
-.centered-page .about-links { justify-content: center; }
-
 /* ─── Contact: a presentation section, so it is centred throughout ─── */
 .centered-page #contact .section-tag { justify-content: center; }
 
@@ -1286,9 +975,6 @@ footer span { color: var(--green); }
 
 /* ─── Centred layout on small screens ─── */
 @media (max-width: 480px) {
-  /* Full-width actions read better than centred short buttons on a phone. */
-  .centered-page .project-links,
-  .centered-page .about-links { gap: 10px; }
   .centered-page .hero-terminal { max-width: 100%; }
   /* Keep the JSON legible on a phone rather than shrinking it to fit. */
   .terminal-body { padding: 18px 16px; }

@@ -5,7 +5,6 @@ from datetime import date
 import pytest
 
 import blog
-import content
 
 GOOD = """---
 title: "A Post"
@@ -14,7 +13,6 @@ date: "2026-01-02"
 description: "Short description."
 tags:
   - Testing
-related_project: agentic-knowledge-base-assistant
 github_url: https://github.com/RealKeithGregory
 ---
 
@@ -53,7 +51,6 @@ def test_parse_post_reads_metadata_and_renders_markdown():
     assert post.slug == "a-post"
     assert post.date == date(2026, 1, 2)
     assert post.tags == ["Testing"]
-    assert post.related_project["slug"] == "agentic-knowledge-base-assistant"
     assert post.github_url == "https://github.com/RealKeithGregory"
     assert "<h1>Heading</h1>" in post.body_html
     assert "<strong>bold</strong>" in post.body_html
@@ -67,7 +64,6 @@ def test_parse_post_reads_metadata_and_renders_markdown():
         (lambda t: t.replace('description: "Short description."\n', ""), "missing required"),
         (lambda t: t.replace('slug: "a-post"', 'slug: "A Post!"'), "slug"),
         (lambda t: t.replace('date: "2026-01-02"', 'date: "Jan 2 2026"'), "date"),
-        (lambda t: t.replace("related_project: agentic-knowledge-base-assistant", "related_project: nope"), "related_project"),
         (lambda t: t.split("---\n\n")[0] + "---\n\n   \n", "empty"),
         (lambda t: t.replace("---\n", "", 1), "front matter"),
     ],
@@ -78,10 +74,9 @@ def test_invalid_front_matter_is_rejected(mutation, message):
 
 
 def test_optional_fields_may_be_blank():
-    text = GOOD.replace("related_project: agentic-knowledge-base-assistant", "related_project:")
-    text = text.replace("github_url: https://github.com/RealKeithGregory", "github_url:")
+    text = GOOD.replace("github_url: https://github.com/RealKeithGregory", "github_url:")
     post = blog.parse_post(text)
-    assert post.related_project is None and post.github_url is None
+    assert post.github_url is None
 
 
 def test_duplicate_slugs_are_detected(tmp_path):
@@ -102,12 +97,6 @@ def test_load_posts_orders_by_date_and_reports_file(tmp_path):
 def test_reading_time_rounds_up():
     assert blog.reading_minutes("word " * 10) == 1
     assert blog.reading_minutes("word " * 201) == 2
-
-
-def test_related_project_slugs_exist_for_all_real_posts(posts):
-    for post in posts:
-        if post.related_project:
-            assert content.get_project(post.related_project["slug"]) is not None
 
 
 def test_first_article_keeps_its_own_career_context(posts):

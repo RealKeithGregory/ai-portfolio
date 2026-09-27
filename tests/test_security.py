@@ -114,11 +114,15 @@ def test_templates_use_no_inline_style(template):
 
 
 def test_stagger_classes_the_templates_use_are_defined():
-    """The delay classes replaced inline transition-delay attributes, so a
-    missing rule would silently drop the animation instead of erroring."""
+    """The delay and spacing classes replaced inline style attributes, so a
+    missing rule would silently drop the effect instead of erroring."""
     css = (Path(__file__).resolve().parent.parent / "assets/css/styles.css").read_text()
-    for rule in (".delay-0", ".delay-1", ".delay-2", ".section-flush-top"):
-        assert rule in css, f"{rule} is used by a template but not defined"
+    used = set()
+    for template in TEMPLATES:
+        used |= set(re.findall(r"\b(delay-\d+|section-flush-top)\b", template.read_text(encoding="utf-8")))
+    assert used, "expected at least one stagger or spacing class in the templates"
+    for name in sorted(used):
+        assert f".{name} " in css or f".{name}{{" in css, f".{name} is used by a template but not defined"
 
 
 # ─── HSTS IS PRODUCTION-ONLY ──────────────────────────────────────────────────

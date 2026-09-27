@@ -7,7 +7,6 @@ tags:
   - AI Engineering
   - AI Reliability
   - Career
-related_project:
 github_url:
 ---
 
