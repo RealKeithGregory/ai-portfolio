@@ -14,12 +14,12 @@ observability, with a growing focus on financial AI. It has two jobs:
 ## Architecture
 
 ```text
-FastAPI               routing, lifespan, JSON API            server.py
+FastAPI               routing, lifespan                      server.py
 Jinja2 templates      server-rendered pages                  templates/
 Vanilla HTML/CSS/JS   one stylesheet, one script, no build   assets/
 Markdown + YAML       blog articles with front matter        content/blog/
 Python data           canonical profile/projects/skills      content.py
-Starlette middleware  security headers, rate + size limits   security.py
+Starlette middleware  security headers                       security.py
 Environment settings  one variable: APP_ENV                  config.py
 pytest                route, blog, content, security tests   tests/
 Vercel function       the host; FastAPI preset, no build     requirements.txt
@@ -32,8 +32,6 @@ Request flow:
   recent posts.
 - `GET /blog` and `GET /blog/{slug}` render posts loaded by `blog.py`.
   Unknown slugs return a real 404.
-- `POST /api/chat` is a small scripted keyword responder ("Portfolio Guide").
-  It is not an LLM and is labelled that way in the UI.
 
 There is no database, CMS, auth, or frontend build step.
 
@@ -70,12 +68,11 @@ The suite starts the app once and covers:
 - blog: Markdown parsing, required front matter, invalid dates/slugs,
   duplicate slugs, related-project validation, ordering, reading time
 - content: no placeholder URLs in rendered pages, the profile exposes an exact
-  set of fields, project definitions are consistent, guide labels are honest
+  set of fields, project definitions are consistent
 - boundaries: the app serves only its declared routes, and pages link only
   to approved destinations
 - security: the response headers, that the templates contain nothing the CSP
-  forbids, that the interactive docs are development-only, and that the rate
-  and body-size limits hold
+  forbids, and that the interactive docs are development-only
 
 `python -m blog` validates every article from the command line. CI
 (`.github/workflows/ci.yml`) installs dependencies, validates posts, checks
@@ -114,10 +111,10 @@ are never accepted from a visitor or any other external source. The rendered
 HTML is inserted into the page unescaped (`post.body_html | safe`), and
 python-markdown passes raw HTML through, so a `<script>` tag written into an
 article would run. That is the same trust already placed in `content.py` and
-the templates: committing to this repository is the trust boundary. Everything
-that *does* come from a visitor -- Portfolio Guide messages -- is escaped, and
-the CSP blocks inline script regardless. If articles ever
-come from somewhere else, that is the point to add a sanitizer.
+the templates: committing to this repository is the trust boundary. Nothing
+on the site comes from a visitor, and the CSP blocks inline script regardless.
+If articles ever come from somewhere else, that is the point to add a
+sanitizer.
 
 Posts are loaded once at startup. With the run command above
 the server restarts itself when a `.md` or `.html` file changes; without the
@@ -157,8 +154,8 @@ is only for your own shell and is never required.
 
 ### What the app defends itself with
 
-- **Security headers** on every response, pages and API alike (`security.py`).
-  The CSP is `default-src 'self'` with no `'unsafe-inline'` and no
+- **Security headers** on every response, pages, assets and errors alike
+  (`security.py`). The CSP is `default-src 'self'` with no `'unsafe-inline'` and no
   `'unsafe-eval'`: the only external origins allowed are the Google Fonts
   stylesheet and the font files it loads. Nothing in the templates uses an
   inline `<script>`, an `on*=` handler, or a `style=` attribute, and tests
@@ -166,19 +163,9 @@ is only for your own shell and is never required.
   Also `nosniff`, `frame-ancestors 'none'` with `X-Frame-Options: DENY`,
   `strict-origin-when-cross-origin`, and a `Permissions-Policy` that denies
   every browser feature the site does not use.
-- **Rate limit** on the POST endpoint, per client IP, in memory: 40/minute
-  on `/api/chat`. Over the limit is a `429` with `Retry-After`, which the
-  page reports as a rate limit rather than a failure. Pages are never
-  throttled. The counters live in the process, so
-  each running instance enforces its own allowance. On a serverless platform
-  that means the limit is per instance rather than global -- a deliberate
-  trade-off, since a shared counter would mean a Redis this site does not
-  otherwise need. It still bounds what one client can drive on the instance
-  serving it.
-- **Request bounds.** The endpoint takes one string of at most 500
-  characters. A body over 16 KB is refused with `413` before it is read.
-  Empty, blank, wrong-typed, over-long and malformed-JSON bodies all return
-  `422`. The platform caps a request body at 4.5 MB before the app sees it.
+- **No visitor input.** Every route is a `GET` that renders repository
+  content. There is no form, no API and no endpoint that accepts data, so
+  the CSP allows the script no network requests at all (`connect-src 'none'`).
 
 ## Deployment
 
@@ -205,7 +192,7 @@ as a red build first.
 Static assets live in `assets/`, not `public/`: Vercel treats a root-level
 `public/` as a CDN directory, and CDN-served files bypass the application --
 which would mean serving the stylesheet and the script without the security
-headers below.
+headers described above.
 
 ### The container, and why it is still here
 
@@ -213,36 +200,6 @@ headers below.
 the site before this and is kept idle as a temporary rollback target. CI
 still builds and starts that image on every push, so the fallback cannot rot
 unnoticed.
-
-### Which client address is trusted
-
-The rate limiter keys on an address, so which address matters. uvicorn's
-`--proxy-headers` is deliberately **not** used: with `--forwarded-allow-ips='*'`
-it takes the **left-most** `X-Forwarded-For` entry, and that is the one a
-visitor writes. `security.client_identity()` reads the header itself and
-takes the **right-most** entry instead -- the one the platform in front wrote
-after seeing the connection, rather than one the visitor supplied. A request
-forged with `X-Forwarded-For: 9.9.9.9` arrives as `9.9.9.9, <real address>`,
-so the forgery lands on the left and is ignored.
-
-IPv6 visitors are counted per **/64 network** rather than per address. A
-home connection is handed a whole /64 and its host bits rotate on their own
-(privacy extensions), so counting full addresses would hand one subscriber an
-unlimited supply of allowances. IPv4 is counted per address.
-
-`TRUSTED_PROXY_HOPS = 1` says one proxy in front of the app may be believed.
-Vercel sets `X-Forwarded-For` to the client's address and discards whatever
-the client sent, so the header arrives with a single entry that is not the
-visitor's to choose. The container fallback has the same shape for a
-different reason: nothing reaches it except through a front end that appends
-the address it saw. Serving this app with its port exposed directly would
-make the header forgeable again, so the assumption is pinned by a test rather
-than left in a comment. With no header at all, the socket peer is used.
-
-Checked against the running site rather than assumed: fill the window to the
-limit, then replay it with `X-Forwarded-For`, `X-Real-IP`, `Forwarded`,
-`X-Client-IP` and the `X-Vercel-*` forwarding headers all forged. Every
-variant still returns `429`.
 
 ## Philosophy
 

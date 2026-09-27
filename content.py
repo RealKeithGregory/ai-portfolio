@@ -1,8 +1,8 @@
 """Canonical portfolio content.
 
 Everything the public site says lives here (or in content/blog/*.md).
-Templates and the portfolio guide both read from these structures so the
-same fact is never written twice.
+The templates read from these structures so the same fact is never written
+twice.
 
 This is an AI engineering portfolio, not a resume. Employment history --
 employer names, job titles, dates, duties -- is deliberately not present in

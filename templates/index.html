@@ -229,33 +229,3 @@
   </div>
 </section>
 {% endblock %}
-
-{% block widgets %}
-<!-- PORTFOLIO GUIDE — scripted keyword responder, not an LLM -->
-<div id="chat-bubble">
-  <div id="chat-window" role="dialog" aria-label="Portfolio guide" hidden>
-    <div class="chat-header">
-      <div class="chat-avatar" aria-hidden="true">💬</div>
-      <div class="chat-header-text">
-        <h4>Portfolio Guide</h4>
-        <p>● Scripted answers · keyword matching, not an LLM</p>
-      </div>
-    </div>
-    <div id="chat-messages" aria-live="polite">
-      <div class="msg bot">Hi, I'm a small scripted guide, not an AI model. I match a few keywords to prepared answers about the projects, the toolkit, the blog, and contact details.</div>
-    </div>
-    <div class="chat-quick-replies">
-      <button type="button" class="quick-reply" data-message="What projects have you built?">Projects?</button>
-      <button type="button" class="quick-reply" data-message="What is on the blog?">Blog?</button>
-      <button type="button" class="quick-reply" data-message="What tools do you work with?">Toolkit?</button>
-      <button type="button" class="quick-reply" data-message="How do I contact you?">Contact?</button>
-    </div>
-    <div class="chat-input-row">
-      <label for="chat-input" class="sr-only">Ask the portfolio guide</label>
-      <input id="chat-input" type="text" placeholder="Ask about projects, the blog, or the toolkit..." />
-      <button id="chat-send" type="button" aria-label="Send">➤</button>
-    </div>
-  </div>
-  <button id="chat-toggle" type="button" aria-expanded="false" aria-label="Open portfolio guide" aria-controls="chat-window">💬</button>
-</div>
-{% endblock %}

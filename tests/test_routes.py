@@ -25,7 +25,7 @@ def links_in(html):
 
 # Every route this application is meant to serve. FastAPI's own /docs,
 # /redoc and /openapi.json are excluded from the comparison below.
-APPROVED_ROUTES = {"/", "/blog", "/blog/{slug}", "/api/chat"}
+APPROVED_ROUTES = {"/", "/blog", "/blog/{slug}"}
 
 FASTAPI_BUILTIN_ROUTES = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
 
@@ -103,12 +103,6 @@ def test_unknown_page_is_404_not_homepage(client):
     r = client.get("/definitely-not-a-page")
     assert r.status_code == 404
     assert "Keith<br>" not in r.text
-
-
-def test_unknown_api_path_is_json_404(client):
-    r = client.post("/api/nothing")
-    assert r.status_code == 404
-    assert r.json() == {"detail": "Not Found"}
 
 
 def test_app_exposes_only_approved_routes():

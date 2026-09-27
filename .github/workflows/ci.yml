@@ -71,12 +71,10 @@ jobs:
             sleep 1
           done
           status() { curl -sS -o /dev/null -w '%{http_code}' "$@"; }
-          echo "--- pages, assets and the guide ---"
+          echo "--- pages and assets ---"
           for path in / /blog /static/css/styles.css /static/js/site.js; do
             test "$(status http://127.0.0.1:8000$path)" = "200" || { echo "$path"; exit 1; }
           done
-          test "$(status -X POST http://127.0.0.1:8000/api/chat \
-            -H 'Content-Type: application/json' -d '{"message":"projects"}')" = "200"
           test "$(status http://127.0.0.1:8000/not-a-page)" = "404"
           echo "--- production disables the interactive docs ---"
           for path in /docs /redoc /openapi.json; do
@@ -111,11 +109,9 @@ jobs:
             sleep 1
           done
           status() { curl -sS -o /dev/null -w '%{http_code}' "$@"; }
-          echo "--- pages and the guide ---"
+          echo "--- pages ---"
           test "$(status http://localhost:8080/)" = "200"
           test "$(status http://localhost:8080/blog)" = "200"
-          test "$(status -X POST http://localhost:8080/api/chat \
-            -H 'Content-Type: application/json' -d '{"message":"projects"}')" = "200"
           echo "--- production disables the interactive docs ---"
           for path in /docs /redoc /openapi.json; do
             test "$(status http://localhost:8080$path)" = "404" || { echo "$path"; exit 1; }

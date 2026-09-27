@@ -9,11 +9,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
-from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import blog
@@ -43,12 +41,6 @@ def docs_settings():
 
 app = FastAPI(lifespan=lifespan, **docs_settings())
 
-# Held by name so that its counters can be inspected and reset.
-api_limiter = security.RateLimiter()
-
-# Added last means outermost: the security headers are applied to every
-# response, including the 429 and 413 the guard below returns itself.
-app.add_middleware(security.ApiGuardMiddleware, limiter=api_limiter)
 app.add_middleware(security.SecurityHeadersMiddleware, hsts=config.IS_PRODUCTION)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "assets"), name="static")
@@ -131,98 +123,9 @@ async def blog_post(request: Request, slug: str):
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error(request: Request, exc: StarletteHTTPException):
-    if request.url.path.startswith("/api/"):
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     return templates.TemplateResponse(
         request,
         "404.html" if exc.status_code == 404 else "error.html",
         page_context(request, status_code=exc.status_code, detail=exc.detail),
         status_code=exc.status_code,
     )
-
-
-# ─── PORTFOLIO GUIDE ──────────────────────────────────────────────────────────
-# A small scripted responder: it matches keywords against a few prepared
-# answers built from content.py. It is not an LLM and does not claim to be.
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=500)
-
-
-def guide_reply(message: str, posts) -> str:
-    msg = message.lower()
-    profile = content.PROFILE
-
-    def has(*words):
-        return any(w in msg for w in words)
-
-    if has("blog", "article", "writing", "post", "read"):
-        if posts:
-            latest = posts[0]
-            return (
-                f"The latest article is \"{latest.title}\" ({latest.date_display}). "
-                f"All articles are at /blog."
-            )
-        return "No articles are published yet. Check /blog later."
-
-    if has("project", "built", "build", "case study", "rag", "agent"):
-        built = [p["name"] for p in content.PROJECTS if p["status"] in ("live", "built")]
-        planned = [p["name"] for p in content.PROJECTS if p["status"] == "planned"]
-        # Either list can be empty, and an empty "Built: ." would read as a bug.
-        parts = []
-        if built:
-            parts.append(f"Built: {', '.join(built)}.")
-        if planned:
-            parts.append(f"Planned next: {', '.join(planned)}.")
-        parts.append("Each card in the Projects section expands into more detail.")
-        return " ".join(parts)
-
-    if has("hire", "available", "open to", "opportunit", "looking for", "freelance"):
-        return (
-            f"{profile['name']} is open to conversations about AI engineering work: "
-            "evaluation, reliability, RAG, and agents. The Contact section has "
-            "LinkedIn and email."
-        )
-
-    if has(
-        "experience", "background", "qa", "years", "career", "resume", "cv",
-        "employer", "employ", "company", "work", "history", "job", "role",
-    ):
-        return (
-            f"{profile['name']}'s approach to AI engineering is shaped by more than "
-            "a decade of experience building, testing, automating, and validating "
-            "software systems. This site is about the AI work itself. See the "
-            "Projects section for what is being built and evaluated, /blog for the "
-            f"engineering reasoning behind it, and GitHub ({profile['links']['github']}) "
-            "for the implementation."
-        )
-
-    if has("skill", "know", "tech", "stack", "language", "tool"):
-        groups = "; ".join(
-            f"{g['name']}: {', '.join(g['skills'][:5])}" for g in content.SKILL_GROUPS
-        )
-        return f"Skills by area. {groups}. Full lists are in the Skills section."
-
-    if has("contact", "reach", "email", "linkedin", "github"):
-        links = profile["links"]
-        return (
-            f"LinkedIn: {links['linkedin']} · GitHub: {links['github']} · "
-            f"Email: {links['email']}"
-        )
-
-    if has("who", "about", "tell me", "introduce", "keith"):
-        return (
-            f"{profile['name']}, {profile['headline']}. The focus is "
-            f"{profile['specialization']}: RAG and retrieval, agents and tool use, "
-            "guardrails, observability, and financial AI. See the About section for "
-            "the short version."
-        )
-
-    return (
-        "I only match a few keywords (projects, skills, blog, contact). "
-        "For anything else, the Projects section and /blog have the detail."
-    )
-
-
-@app.post("/api/chat")
-async def api_chat(req: ChatRequest, request: Request):
-    return {"reply": guide_reply(req.message, request.app.state.posts)}
