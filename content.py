@@ -1,13 +1,13 @@
 """Canonical portfolio content.
 
 Everything the public site says lives here (or in content/blog/*.md).
-Templates, the search index, and the portfolio guide all read from these
-structures so the same fact is never written twice.
+Templates and the portfolio guide both read from these structures so the
+same fact is never written twice.
 
 This is an AI engineering portfolio, not a resume. Employment history --
 employer names, job titles, dates, duties -- is deliberately not present in
-this module, because everything here is rendered publicly and indexed by the
-semantic search. Keep personal resume material outside the repository.
+this module, because everything here is rendered publicly. Keep personal
+resume material outside the repository.
 
 Leave a TODO rather than inventing a value that is not known yet.
 """
@@ -22,7 +22,8 @@ PROFILE = {
     "summary": (
         "I build, evaluate, and document *AI systems*: RAG and retrieval, agents "
         "and tool use, guardrails, and observability, with a growing focus on "
-        "*financial AI*. Every project here is measured, not just demonstrated."
+        "*financial AI*. Every project here is built to be measured, not just "
+        "demonstrated."
     ),
     "about": [
         (
@@ -71,8 +72,6 @@ SKILL_GROUPS = [
         "blurb": "What the projects on this site are built from.",
         "skills": [
             "LLM APIs",
-            "Embeddings",
-            "Semantic search",
             "RAG (building)",
             "Agents & tool calling (building)",
             "Structured outputs (building)",
@@ -84,7 +83,7 @@ SKILL_GROUPS = [
         "blurb": "How I decide whether an AI system actually works.",
         "skills": [
             "AI evaluation",
-            "Retrieval evaluation",
+            "Retrieval evaluation (learning)",
             "Regression testing",
             "Schema validation",
             "Failure analysis",
@@ -109,20 +108,13 @@ SKILL_GROUPS = [
     },
 ]
 
-# Projects are grouped so the long-term AI systems lead, with smaller working
-# pieces of AI engineering underneath. (key, heading, blurb) in display order.
+# Projects are grouped by category. (key, heading, blurb) in display order.
 PROJECT_CATEGORIES = [
     (
         "core",
         "Core AI Engineering Projects",
         "The systems I am building to work through retrieval, agents, "
         "coordination, and the reliability problems each one creates.",
-    ),
-    (
-        "supporting",
-        "Supporting AI Engineering Projects",
-        "Smaller pieces of AI engineering that are already running, and that the "
-        "larger projects reuse.",
     ),
 ]
 
@@ -243,59 +235,6 @@ PROJECTS = [
             "What reliability checks run in CI before a change ships?",
         ],
         "evidence": {},
-    },
-    {
-        "slug": "semantic-portfolio-search",
-        "name": "Semantic Portfolio Search",
-        "status": "live",
-        "category": "supporting",
-        "icon": "🔍",
-        "summary": (
-            "The search box on this site. Queries are embedded locally with "
-            "sentence-transformers and ranked by cosine similarity against the "
-            "portfolio content and blog posts. No external API."
-        ),
-        "tags": ["Python", "FastAPI", "sentence-transformers", "NumPy", "Embeddings"],
-        "sections": {
-            "problem": (
-                "Let a visitor ask a natural-language question and get the most "
-                "relevant part of the portfolio back, without keyword matching or a "
-                "hosted vector service."
-            ),
-            "architecture": (
-                "At startup the server derives text chunks from the canonical "
-                "content module and every Markdown blog post, embeds them once with "
-                "all-MiniLM-L6-v2, and keeps the normalized vectors in a NumPy "
-                "array. A query is embedded the same way and scored with a dot "
-                "product (equal to cosine similarity for normalized vectors)."
-            ),
-            "implementation": (
-                "The index is built from the same data the pages render, so a new "
-                "blog post becomes searchable without touching Python. The model "
-                "loads once in the FastAPI lifespan, not per request."
-            ),
-            "evaluation": (
-                "Automated tests check the response schema, that malformed requests "
-                "fail with 422, that a query about a blog topic surfaces that post, "
-                "and that scores are within the cosine range."
-            ),
-            "failure_modes": (
-                "An earlier version displayed raw cosine similarity as a percentage "
-                "\"match\", which reads like a calibrated confidence it is not. It now "
-                "shows the similarity value and lets ranking do the work. Short "
-                "queries with no overlap still return low-similarity results rather "
-                "than saying \"nothing relevant\"."
-            ),
-            "improvements": (
-                "Add a small retrieval evaluation set (query → expected section) so "
-                "ranking regressions are caught in CI, and experiment with a "
-                "similarity floor for \"no good match\"."
-            ),
-        },
-        "evidence": {
-            "try_it": "#search",
-            # TODO: add the public repository URL for this portfolio once it is published.
-        },
     },
 ]
 

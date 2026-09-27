@@ -155,7 +155,7 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
       const data = await res.json();
       typing.remove();
       // `detail` is what the server sends when the request is rate limited.
-      addMsg(data.reply || data.detail || "I don't have an answer for that. Try the semantic search or the contact links.", 'bot');
+      addMsg(data.reply || data.detail || "I don't have an answer for that. Try the Projects section or the contact links.", 'bot');
     } catch {
       typing.remove();
       addMsg("I couldn't reach the server. The contact links at the bottom of the page still work.", 'bot');
@@ -171,84 +171,4 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
       sendMessage();
     });
   });
-})();
-
-// ─── SEMANTIC SEARCH ─────────────────────────────────────────────
-(function semanticSearch() {
-  const input = document.getElementById('search-input');
-  const btn = document.getElementById('search-btn');
-  const status = document.getElementById('search-status');
-  const results = document.getElementById('search-results');
-  if (!input || !btn || !status || !results) return;
-
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  async function runSearch() {
-    const query = input.value.trim();
-    if (!query) { status.textContent = 'Please enter a search query.'; return; }
-
-    btn.disabled = true;
-    btn.textContent = 'Searching...';
-    status.textContent = 'Running semantic search...';
-    results.innerHTML = '';
-
-    try {
-      const res = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-      if (res.status === 429) {
-        // The endpoint runs a model locally, so it is rate limited. Say so
-        // rather than reporting a generic failure.
-        const limited = await res.json().catch(() => ({}));
-        status.textContent = limited.detail || 'Too many searches. Please wait a moment.';
-        return;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      if (!data.results.length) {
-        status.textContent = `No results for "${query}"`;
-        results.innerHTML = '<p class="search-empty">No results found.</p>';
-        return;
-      }
-
-      status.textContent = `Top ${data.results.length} results for "${query}", ranked by cosine similarity`;
-      data.results.forEach(r => {
-        const card = document.createElement('article');
-        card.className = 'search-result-card';
-        const title = r.url
-          ? `<a href="${escapeHtml(r.url)}">${escapeHtml(r.section)}</a>`
-          : escapeHtml(r.section);
-        card.innerHTML = `
-          <div class="result-meta">
-            <span class="result-section">${title}</span>
-            <span class="result-score">Similarity: ${Number(r.score).toFixed(2)}</span>
-          </div>
-          <p class="result-text">${escapeHtml(r.snippet || r.text)}</p>
-        `;
-        results.appendChild(card);
-      });
-    } catch (err) {
-      status.textContent = 'Search unavailable. Please try again.';
-      console.error('Search error:', err);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Search';
-    }
-  }
-
-  btn.addEventListener('click', runSearch);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
-  // The input sits in a <form> for assistive technology, but the search is
-  // an in-page fetch, so the form must never navigate. Bound here rather
-  // than as an inline onsubmit attribute, which the CSP forbids.
-  input.form?.addEventListener('submit', e => e.preventDefault());
 })();

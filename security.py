@@ -4,9 +4,9 @@ Two pieces of plain Starlette middleware, no extra dependency:
 
 1. `SecurityHeadersMiddleware` sets the same defensive headers on every
    response, including static files and API JSON.
-2. `ApiGuardMiddleware` bounds the two POST endpoints -- a request body size
-   limit and a per-IP rate limit -- so that embedding inference cannot be
-   driven by an unbounded request rate from one client.
+2. `ApiGuardMiddleware` bounds the POST endpoint -- a request body size
+   limit and a per-IP rate limit -- so that one client cannot drive it at an
+   unbounded request rate.
 
 The rate limiter holds its counters in memory, so each running instance
 enforces its own allowance. On a platform that scales out that makes the
@@ -27,7 +27,7 @@ from starlette.responses import JSONResponse
 #   - styles:      /static/css/styles.css plus the Google Fonts stylesheet
 #   - fonts:       fonts.gstatic.com, fetched by that stylesheet
 #   - images:      the inline SVG favicon, which is a data: URI
-#   - connections: fetch() to /api/search and /api/chat, same-origin
+#   - connections: fetch() to /api/chat, same-origin
 # so every directive below is the narrowest value the site actually works
 # with. 'unsafe-inline' and 'unsafe-eval' appear nowhere.
 CSP = "; ".join(
@@ -174,17 +174,14 @@ def client_identity(scope, trusted_hops=TRUSTED_PROXY_HOPS):
 
 
 # ─── API GUARDS ───────────────────────────────────────────────────────────────
-# Requests per window (seconds), per client IP, per path. /api/search runs
-# embedding inference and is the endpoint worth protecting; /api/chat only
-# matches keywords, so it is cheaper and gets a looser allowance. Both are
-# well above what a person clicking around the page can reach, and well
-# below what a script could use to keep the CPU busy.
+# Requests per window (seconds), per client IP, per path. Well above what a
+# person clicking around the page can reach, and well below what a script
+# could use to keep the CPU busy.
 RATE_LIMITS = {
-    "/api/search": (20, 60),
     "/api/chat": (40, 60),
 }
 
-# Both endpoints take one short string (max 500 characters). Anything near
+# The endpoint takes one short string (max 500 characters). Anything near
 # this size is already malformed, and rejecting on Content-Length means an
 # oversized body is refused before it is read into memory.
 MAX_BODY_BYTES = 16 * 1024
@@ -246,7 +243,7 @@ class ApiGuardMiddleware:
     """Body-size and rate limits for the rate-limited API paths.
 
     Page requests are untouched: a visitor reading the site is never
-    throttled, only the two endpoints that do work on demand.
+    throttled, only the endpoint that does work on demand.
     """
 
     def __init__(self, app, limiter=None, max_body_bytes=MAX_BODY_BYTES):
@@ -276,8 +273,7 @@ class ApiGuardMiddleware:
         if wait is not None:
             await self._reject(
                 scope, receive, send, 429,
-                "Too many requests. This endpoint runs a model locally, so it is "
-                f"rate limited. Try again in {wait} second(s).",
+                f"Too many requests. This endpoint is rate limited. Try again in {wait} second(s).",
                 headers={"Retry-After": str(wait)},
             )
             return

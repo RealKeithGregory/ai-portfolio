@@ -25,7 +25,7 @@ def links_in(html):
 
 # Every route this application is meant to serve. FastAPI's own /docs,
 # /redoc and /openapi.json are excluded from the comparison below.
-APPROVED_ROUTES = {"/", "/blog", "/blog/{slug}", "/api/search", "/api/chat"}
+APPROVED_ROUTES = {"/", "/blog", "/blog/{slug}", "/api/chat"}
 
 FASTAPI_BUILTIN_ROUTES = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
 

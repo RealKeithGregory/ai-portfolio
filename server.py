@@ -4,14 +4,9 @@ Run locally:  uvicorn server:app --reload --reload-include '*.md' --reload-inclu
 (the --reload-include flags restart the server when posts or templates change)
 """
 
-import asyncio
-import logging
 import re
-import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-
-import anyio.to_thread
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -24,83 +19,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import blog
 import config
 import content
-import search
 import security
 
 BASE_DIR = Path(__file__).parent
 RECENT_POSTS_ON_HOME = 3
 
-# uvicorn configures its own loggers but not this one, and the root logger
-# defaults to WARNING -- which silently swallowed the index-build messages
-# below. They are the only record of when the model loaded and how long it
-# took, so the level is set explicitly rather than left to chance.
-log = logging.getLogger("portfolio")
-log.setLevel(logging.INFO)
-if not log.handlers:
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
-    log.addHandler(_handler)
-
-
-class LazySearchIndex:
-    """Builds the search index on first use, once per process.
-
-    Startup used to embed the whole corpus before the app would serve
-    anything, which put the embedding model on the critical path of every
-    page. Nothing but /api/search needs it, so it is built on the first
-    search instead: an instance that only ever serves pages never imports
-    PyTorch, never loads the model, and never pays for either.
-
-    Concurrency: the first caller takes the lock and builds. Anyone arriving
-    meanwhile waits on the same lock and then finds the finished index
-    rather than starting a second build, so the model is loaded at most once
-    per process. The build runs in a worker thread because it is blocking
-    CPU work that would otherwise stall the event loop -- and therefore
-    every page request -- for as long as it took.
-
-    Failure: an exception propagates to the caller and the index stays
-    unbuilt, so a later search retries from scratch. It is deliberately not
-    remembered as a permanent failure; a transient problem should not
-    disable search until the instance is replaced.
-    """
-
-    def __init__(self, build):
-        self._build = build
-        self._index = None
-        self._lock = asyncio.Lock()
-
-    @property
-    def ready(self):
-        """True once the index exists. Never triggers a build."""
-        return self._index is not None
-
-    async def get(self):
-        if self._index is not None:
-            return self._index
-        async with self._lock:
-            # Another request may have finished the build while this one
-            # was waiting for the lock.
-            if self._index is None:
-                log.info("Building search index (first search on this instance)")
-                started = time.perf_counter()
-                self._index = await anyio.to_thread.run_sync(self._build)
-                log.info(
-                    "Embedded %d searchable chunks in %.2fs.",
-                    len(self._index.chunks),
-                    time.perf_counter() - started,
-                )
-            return self._index
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Posts are cheap and every page needs them, so they load here. The
-    # search index is not: see LazySearchIndex.
     app.state.posts = blog.load_posts()
     print(f"Loaded {len(app.state.posts)} blog post(s).")
-    app.state.search_index = LazySearchIndex(
-        lambda: search.build_index(app.state.posts)
-    )
     yield
 
 
@@ -213,31 +141,6 @@ async def http_error(request: Request, exc: StarletteHTTPException):
     )
 
 
-# ─── SEARCH ───────────────────────────────────────────────────────────────────
-class SearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=500)
-
-
-@app.post("/api/search")
-async def api_search(req: SearchRequest, request: Request):
-    if not req.query.strip():
-        raise HTTPException(status_code=422, detail="query must not be blank")
-    try:
-        index = await request.app.state.search_index.get()
-    except Exception:
-        # The traceback goes to the logs, never to the visitor, and the rest
-        # of the site is unaffected -- only search is degraded. Returning an
-        # empty result list instead would be worse: it would look like an
-        # answer.
-        log.exception("Search index failed to build")
-        raise HTTPException(
-            status_code=503,
-            detail="Search is temporarily unavailable. The rest of the site works.",
-        )
-    results = index.query(req.query)
-    return {"query": req.query, "results": results}
-
-
 # ─── PORTFOLIO GUIDE ──────────────────────────────────────────────────────────
 # A small scripted responder: it matches keywords against a few prepared
 # answers built from content.py. It is not an LLM and does not claim to be.
@@ -264,10 +167,14 @@ def guide_reply(message: str, posts) -> str:
     if has("project", "built", "build", "case study", "rag", "agent"):
         built = [p["name"] for p in content.PROJECTS if p["status"] in ("live", "built")]
         planned = [p["name"] for p in content.PROJECTS if p["status"] == "planned"]
-        return (
-            f"Built: {', '.join(built)}. Planned next: {', '.join(planned)}. "
-            "Each card in the Projects section expands into a case study."
-        )
+        # Either list can be empty, and an empty "Built: ." would read as a bug.
+        parts = []
+        if built:
+            parts.append(f"Built: {', '.join(built)}.")
+        if planned:
+            parts.append(f"Planned next: {', '.join(planned)}.")
+        parts.append("Each card in the Projects section expands into more detail.")
+        return " ".join(parts)
 
     if has("hire", "available", "open to", "opportunit", "looking for", "freelance"):
         return (
@@ -295,19 +202,11 @@ def guide_reply(message: str, posts) -> str:
         )
         return f"Skills by area. {groups}. Full lists are in the Skills section."
 
-
     if has("contact", "reach", "email", "linkedin", "github"):
         links = profile["links"]
         return (
             f"LinkedIn: {links['linkedin']} · GitHub: {links['github']} · "
             f"Email: {links['email']}"
-        )
-
-    if has("search", "semantic", "embedding"):
-        return (
-            "The Search section embeds your question with sentence-transformers and "
-            "ranks portfolio content and blog posts by cosine similarity. Everything runs "
-            "locally, with no external API."
         )
 
     if has("who", "about", "tell me", "introduce", "keith"):
@@ -319,8 +218,8 @@ def guide_reply(message: str, posts) -> str:
         )
 
     return (
-        "I only match a few keywords (projects, skills, blog, search, contact). "
-        "For anything else, try the semantic search on this page."
+        "I only match a few keywords (projects, skills, blog, contact). "
+        "For anything else, the Projects section and /blog have the detail."
     )
 
 

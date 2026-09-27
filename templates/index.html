@@ -109,7 +109,6 @@
           {% set related_posts = articles_by_project.get(project.slug, []) %}
           {% if project.evidence or related_posts %}
           <div class="project-links">
-            {% if project.evidence.try_it %}<a href="{{ project.evidence.try_it }}" class="proj-link live">▶ Try it</a>{% endif %}
             {% if project.evidence.live_url %}<a href="{{ project.evidence.live_url }}" class="proj-link live" target="_blank" rel="noopener">▶ Live demo</a>{% endif %}
             {% if project.evidence.github %}<a href="{{ project.evidence.github }}" class="proj-link github" target="_blank" rel="noopener">GitHub</a>{% endif %}
             {% for post in related_posts %}<a href="{{ post.url }}" class="proj-link article">Article</a>{% endfor %}
@@ -148,7 +147,7 @@
       {% for post in recent_posts %}{% include "_post_card.html" %}{% endfor %}
     </div>
     {% else %}
-    <p class="search-empty">First article coming soon.</p>
+    <p class="empty-note">First article coming soon.</p>
     {% endif %}
     <div class="section-actions fade-up">
       <a href="/blog" class="btn-outline">View all articles →</a>
@@ -212,31 +211,11 @@
   </div>
 </section>
 
-<!-- SEMANTIC SEARCH -->
-<section id="search">
-  <div class="container">
-    <div class="fade-up">
-      <div class="section-tag">06 · Explore</div>
-      <h2 class="section-title">Search this portfolio</h2>
-      <p class="section-sub">Ask a question in plain language. It is embedded locally with sentence-transformers and ranked by cosine similarity across the portfolio and blog. No external API. This search box is the <a href="#project-semantic-portfolio-search">Semantic Portfolio Search</a> project.</p>
-    </div>
-    <div class="search-wrap fade-up">
-      <form class="search-input-row" role="search">
-        <label for="search-input" class="sr-only">Search query</label>
-        <input id="search-input" type="text" placeholder="e.g. How is retrieval evaluated?" autocomplete="off" />
-        <button id="search-btn" type="button">Search</button>
-      </form>
-      <div id="search-status" class="search-status" aria-live="polite"></div>
-      <div id="search-results" class="search-results" role="region" aria-label="Search results"></div>
-    </div>
-  </div>
-</section>
-
 <!-- CONTACT -->
 <section id="contact">
   <div class="container">
     <div class="contact-card fade-up">
-      <div class="section-tag">07 · Contact</div>
+      <div class="section-tag">06 · Contact</div>
       <h2 class="section-title">Let's talk</h2>
       <p class="contact-text">
         If you're building AI systems that have to work, or deciding whether they do, I'd like to hear about it. I am always open to conversations about AI engineering work.
@@ -263,7 +242,7 @@
       </div>
     </div>
     <div id="chat-messages" aria-live="polite">
-      <div class="msg bot">Hi, I'm a small scripted guide, not an AI model. I match a few keywords to prepared answers about the projects, the toolkit, the blog, and contact details. For anything else, the semantic search on this page works better.</div>
+      <div class="msg bot">Hi, I'm a small scripted guide, not an AI model. I match a few keywords to prepared answers about the projects, the toolkit, the blog, and contact details.</div>
     </div>
     <div class="chat-quick-replies">
       <button type="button" class="quick-reply" data-message="What projects have you built?">Projects?</button>

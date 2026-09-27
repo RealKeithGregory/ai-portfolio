@@ -64,8 +64,8 @@ def test_public_pages_present_no_dated_history(pages):
 
 
 def test_content_module_exposes_only_approved_fields():
-    """Anything in content.py is rendered publicly and embedded into the search
-    index, so the public shape is pinned to an exact set of fields."""
+    """Anything in content.py is rendered publicly, so the public shape is
+    pinned to an exact set of fields."""
     assert set(content.PROFILE) == APPROVED_PROFILE_FIELDS
     assert set(content.PROFILE["links"]) == APPROVED_LINK_FIELDS
     # No separate history structure alongside the approved ones.
@@ -107,10 +107,11 @@ def test_projects_are_grouped_with_the_core_ai_systems_first():
     core = [p["name"] for p in content.projects_in_category("core")]
     assert "Agentic Knowledge Base Assistant" in core
     assert "Finance AI Capstone" in core
-    supporting = [p["name"] for p in content.projects_in_category("supporting")]
-    assert "Semantic Portfolio Search" in supporting
-    # Every project belongs to exactly one declared group.
-    assert len(core) + len(supporting) == len(content.PROJECTS)
+    # Every project belongs to exactly one declared group, and no declared
+    # group is empty -- an empty one would render a heading with nothing under it.
+    grouped = [content.projects_in_category(key) for key in keys]
+    assert all(grouped), "a project category has no projects"
+    assert sum(len(group) for group in grouped) == len(content.PROJECTS)
 
 
 def test_project_definitions_are_complete_and_consistent():
@@ -148,7 +149,7 @@ def test_guide_replies_come_from_canonical_content(client, posts):
     reply = client.post("/api/chat", json={"message": "What is on the blog?"}).json()["reply"]
     assert posts[0].title in reply
     fallback = client.post("/api/chat", json={"message": "zzzz qqqq"}).json()["reply"]
-    assert "semantic search" in fallback
+    assert "only match a few keywords" in fallback
 
 
 # Generic inputs that reach the guide's background reply.

@@ -62,15 +62,6 @@ class Post:
     def date_display(self):
         return self.date.strftime("%B %-d, %Y")
 
-    @property
-    def plain_text(self):
-        """Markdown body with the most common markup stripped, for search indexing."""
-        text = re.sub(r"```.*?```", " ", self.body_markdown, flags=re.DOTALL)
-        text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
-        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
-        text = re.sub(r"[*_`>]+", "", text)
-        return text
-
 
 def split_front_matter(raw):
     match = FRONT_MATTER.match(raw)

@@ -14,7 +14,7 @@ date: "2026-01-02"
 description: "Short description."
 tags:
   - Testing
-related_project: semantic-portfolio-search
+related_project: agentic-knowledge-base-assistant
 github_url: https://github.com/RealKeithGregory
 ---
 
@@ -53,14 +53,11 @@ def test_parse_post_reads_metadata_and_renders_markdown():
     assert post.slug == "a-post"
     assert post.date == date(2026, 1, 2)
     assert post.tags == ["Testing"]
-    assert post.related_project["slug"] == "semantic-portfolio-search"
+    assert post.related_project["slug"] == "agentic-knowledge-base-assistant"
     assert post.github_url == "https://github.com/RealKeithGregory"
     assert "<h1>Heading</h1>" in post.body_html
     assert "<strong>bold</strong>" in post.body_html
     assert '<pre><code class="language-python">' in post.body_html
-    # Fenced code is dropped from the search text; prose and headings stay.
-    assert "print" not in post.plain_text and "```" not in post.plain_text
-    assert "Heading" in post.plain_text and "bold text" in post.plain_text
 
 
 @pytest.mark.parametrize(
@@ -70,7 +67,7 @@ def test_parse_post_reads_metadata_and_renders_markdown():
         (lambda t: t.replace('description: "Short description."\n', ""), "missing required"),
         (lambda t: t.replace('slug: "a-post"', 'slug: "A Post!"'), "slug"),
         (lambda t: t.replace('date: "2026-01-02"', 'date: "Jan 2 2026"'), "date"),
-        (lambda t: t.replace("related_project: semantic-portfolio-search", "related_project: nope"), "related_project"),
+        (lambda t: t.replace("related_project: agentic-knowledge-base-assistant", "related_project: nope"), "related_project"),
         (lambda t: t.split("---\n\n")[0] + "---\n\n   \n", "empty"),
         (lambda t: t.replace("---\n", "", 1), "front matter"),
     ],
@@ -81,7 +78,7 @@ def test_invalid_front_matter_is_rejected(mutation, message):
 
 
 def test_optional_fields_may_be_blank():
-    text = GOOD.replace("related_project: semantic-portfolio-search", "related_project:")
+    text = GOOD.replace("related_project: agentic-knowledge-base-assistant", "related_project:")
     text = text.replace("github_url: https://github.com/RealKeithGregory", "github_url:")
     post = blog.parse_post(text)
     assert post.related_project is None and post.github_url is None

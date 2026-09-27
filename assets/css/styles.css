@@ -1231,108 +1231,8 @@ footer span { color: var(--green); }
 .delay-1 { transition-delay: 0.1s; }
 .delay-2 { transition-delay: 0.2s; }
 
-/* ─── SEMANTIC SEARCH ───────────────────────────────────────── */
-#search { background: var(--bg); }
-
-.search-wrap { max-width: 680px; }
-
-.search-input-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 28px;
-}
-
-#search-input {
-  flex: 1;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px 18px;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  color: var(--white);
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-#search-input:focus {
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(0,255,180,0.08);
-}
-
-#search-input::placeholder { color: var(--text-dim); }
-
-#search-btn {
-  background: var(--green);
-  color: var(--bg);
-  border: none;
-  border-radius: 8px;
-  padding: 14px 28px;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-#search-btn:hover {
-  background: #00e6a0;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0,255,180,0.25);
-}
-
-#search-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-.search-status {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  letter-spacing: 0.04em;
-  min-height: 1.2em;
-  margin-bottom: 16px;
-}
-
-.search-results { display: flex; flex-direction: column; gap: 16px; }
-
-.search-result-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 22px 26px;
-  animation: fadeIn 0.35s ease both;
-  transition: border-color 0.2s;
-}
-
-.search-result-card:hover { border-color: rgba(0,255,180,0.3); }
-.search-result-card:nth-child(2) { animation-delay: 0.07s; }
-.search-result-card:nth-child(3) { animation-delay: 0.14s; }
-
-.result-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  gap: 12px;
-}
-
-.result-section {
-  font-size: 0.75rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--green);
-  font-weight: 700;
-}
-
-.result-score { font-size: 0.62rem; color: var(--text-dim); letter-spacing: 0.06em; white-space: nowrap; }
-
-.result-section a { color: inherit; text-decoration: none; }
-.result-section a:hover { text-decoration: underline; }
-
-.result-text { font-size: 0.9rem; line-height: 1.7; color: var(--text); overflow-wrap: break-word; }
-
-.search-empty { font-size: 0.9rem; color: var(--text-secondary); padding: 20px 0; }
+/* Shown on the homepage and /blog while no articles are published. */
+.empty-note { font-size: 0.9rem; color: var(--text-secondary); padding: 20px 0; }
 
 /* ─── ACCESSIBILITY ─────────────────────────────────────── */
 .skip-link {
@@ -1415,8 +1315,6 @@ footer span { color: var(--green); }
   .hero-ctas .btn-outline { text-align: center; }
 
   .github-strip { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .search-input-row { flex-direction: column; }
-  #search-btn { width: 100%; }
 
   /* Keep code readable rather than shrinking it; the block scrolls instead. */
   .article-body pre { font-size: 0.8rem; padding: 14px 16px; }
@@ -1445,8 +1343,8 @@ footer span { color: var(--green); }
    aligned, and neither does the portfolio assistant, which sits outside
    <main>.
 
-   Centering presentation, not reading. Two blocks stay left aligned on
-   purpose and are called out below: case-study detail and search results. */
+   Centering presentation, not reading. Case-study detail stays left
+   aligned on purpose and is called out below. */
 
 /* Section headers: the eyebrow rule is mirrored so the label sits on a real
    centre line rather than just being centre-aligned text. */
@@ -1582,16 +1480,6 @@ footer span { color: var(--green); }
 }
 
 .centered-page .about-links { justify-content: center; }
-
-/* ─── Semantic Portfolio Search ─── */
-.centered-page .search-wrap { margin-inline: auto; }
-
-/* HYBRID: the section and the search box are centred, but what the user types
-   and what retrieval returns are content to read, so both stay left aligned. */
-.centered-page #search-input { text-align: left; }
-.centered-page .search-results,
-.centered-page .result-text { text-align: left; }
-.centered-page .search-status { text-align: center; }
 
 /* ─── Contact: a presentation section, so it is centred throughout ─── */
 .centered-page #contact .section-tag { justify-content: center; }

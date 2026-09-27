@@ -16,42 +16,27 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
-      # The embedding model (~87 MB) is downloaded on first use; cache it
-      # between runs so the test job stays fast. The key carries the pinned
-      # revision from search.py, so changing the pin fetches the new weights.
-      - name: Cache sentence-transformers model
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface
-          key: hf-all-MiniLM-L6-v2-1110a243fdf4706b3f48f1d95db1a4f5529b4d41
-
-      # The CPU build, as the deployed image uses. The default PyPI wheel
-      # pulls ~2 GB of CUDA libraries that no runner or Cloud Run instance
-      # here can use. Installed first so the pinned set below finds it
-      # already satisfied.
-      - name: Install CPU PyTorch
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.10.0
-
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+          pip install -r requirements-dev.txt
 
       - name: Validate blog posts
         run: python -m blog
 
       - name: Check syntax
-        run: python -m compileall -q server.py config.py security.py content.py blog.py search.py tests
+        run: python -m compileall -q server.py config.py security.py content.py blog.py tests
 
       - name: Run tests
         run: python -m pytest -q
 
-  # Builds the function Vercel actually runs. Vercel installs the CPU build of
-  # PyTorch and then runs vercel_build.py, which bakes the pinned model into
-  # the bundle; this job does the same two steps and then proves the result
-  # serves with no network and no Hugging Face cache but the baked one. A
-  # dependency that will not install, a model that fails to bake, or a symlink
-  # that would not survive bundling is caught here instead of at deploy time.
+  # Builds what Vercel runs. The project uses Vercel's FastAPI preset with no
+  # build step: it installs requirements.txt on the Python version in
+  # .python-version and serves server:app. This job does the same in a clean
+  # virtual environment, then starts the app in its production configuration.
+  # A dependency that will not install, a bundle that outgrows the standard
+  # function size, or a production-only setting that breaks the site is caught
+  # here instead of at deploy time.
   vercel-package:
     name: Vercel function package
     runs-on: ubuntu-latest
@@ -63,122 +48,77 @@ jobs:
           # Pinned by .python-version, which is also what Vercel reads.
           python-version-file: .python-version
 
-      # Runs vercel.json's own installCommand rather than a copy of it, so
-      # this job cannot drift from what the platform actually does.
       - name: Install exactly what Vercel installs
         run: |
-          install=$(python -c "import json; print(json.load(open('vercel.json'))['installCommand'])")
-          echo "vercel.json installCommand: $install"
-          eval "$install"
+          python -m venv /tmp/function
+          /tmp/function/bin/pip install --no-cache-dir -r requirements.txt
 
-      - name: PyTorch is the CPU build, not the CUDA one
+      # Vercel's standard limit for a Python function is 500 MB uncompressed.
+      # Past it, the deployment silently moves to the large-functions path.
+      - name: Dependencies fit a standard function
         run: |
-          python -c "
-          import torch
-          print('torch', torch.__version__)
-          assert torch.__version__.endswith('+cpu'), torch.__version__
-          "
+          size=$(du -sm /tmp/function/lib/python*/site-packages | cut -f1)
+          echo "installed dependencies: ${size} MB"
+          test "$size" -lt 500 || { echo "over Vercel's 500 MB standard limit"; exit 1; }
 
-      # Likewise the build command, read from vercel.json.
-      - name: Bake the model into the bundle
-        run: |
-          build=$(python -c "import json; print(json.load(open('vercel.json'))['buildCommand'])")
-          echo "vercel.json buildCommand: $build"
-          eval "$build"
-
-      - name: The bundle carries real files, not symlinks
-        run: |
-          test -d hf-cache
-          count=$(find hf-cache -type l | wc -l)
-          test "$count" -eq 0 || { echo "$count symlink(s) in hf-cache"; exit 1; }
-          echo "hf-cache is $(du -sm hf-cache | cut -f1) MB, no symlinks"
-
-      - name: The app serves offline from the baked bundle alone
-        # HOME is moved aside so the only Hugging Face cache reachable is the
-        # one vercel_build.py just wrote. With HF_HUB_OFFLINE=1 a download is
-        # impossible, so a search that returns results proves the bundle is
-        # self-contained -- which is what the function relies on at runtime.
+      - name: The app serves its production configuration
         env:
-          HF_HUB_OFFLINE: "1"
           APP_ENV: production
         run: |
-          mkdir -p /tmp/empty-home
-          HOME=/tmp/empty-home python -m uvicorn server:app --host 127.0.0.1 --port 8000 &
-          for i in $(seq 1 60); do
+          /tmp/function/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8000 &
+          for i in $(seq 1 30); do
             curl -fsS -o /dev/null http://127.0.0.1:8000/ && break
-            sleep 2
+            sleep 1
           done
-          test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "200"
-          echo "--- a real search, offline, from the baked weights ---"
-          body=$(curl -sS -X POST http://127.0.0.1:8000/api/search \
-            -H 'Content-Type: application/json' -d '{"query":"semantic search"}')
-          echo "$body" | python -c "
-          import json, sys
-          d = json.load(sys.stdin)
-          assert d['results'], 'no results'
-          print('top result:', d['results'][0]['section'], d['results'][0]['score'])
-          "
-          echo "--- production still disables the interactive docs ---"
+          status() { curl -sS -o /dev/null -w '%{http_code}' "$@"; }
+          echo "--- pages, assets and the guide ---"
+          for path in / /blog /static/css/styles.css /static/js/site.js; do
+            test "$(status http://127.0.0.1:8000$path)" = "200" || { echo "$path"; exit 1; }
+          done
+          test "$(status -X POST http://127.0.0.1:8000/api/chat \
+            -H 'Content-Type: application/json' -d '{"message":"projects"}')" = "200"
+          test "$(status http://127.0.0.1:8000/not-a-page)" = "404"
+          echo "--- production disables the interactive docs ---"
           for path in /docs /redoc /openapi.json; do
-            test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000$path)" = "404"
+            test "$(status http://127.0.0.1:8000$path)" = "404" || { echo "$path"; exit 1; }
           done
+          echo "--- security headers, HSTS included ---"
+          headers=$(curl -sS -D - -o /dev/null http://127.0.0.1:8000/)
+          for header in content-security-policy x-content-type-options x-frame-options \
+                        referrer-policy permissions-policy strict-transport-security; do
+            echo "$headers" | grep -qi "^$header:" || { echo "missing $header"; exit 1; }
+          done
+          echo "all checks passed"
 
-  # Builds the image Cloud Run actually runs. This job needs no Google Cloud
+  # Builds the image Cloud Run runs. This job needs no Google Cloud
   # credentials and pushes nothing: it only proves the image can be built and
-  # started, so a broken Dockerfile, a dependency that will not install, or a
-  # model that fails to bake in is caught here instead of at deploy time.
+  # started, so a broken Dockerfile or a dependency that will not install is
+  # caught here instead of at deploy time.
   image:
     name: Production image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
-
       - name: Build the production image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          load: true
-          tags: ai-portfolio:ci
-          # Layer cache, so only the layers that changed are rebuilt. The
-          # PyTorch install is the expensive one and rarely changes.
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Model is baked into the image
-        run: |
-          docker run --rm ai-portfolio:ci \
-            sh -c 'test -d /opt/hf-cache/hub/models--sentence-transformers--all-MiniLM-L6-v2'
-          echo "model directory present"
-
-      - name: Model loads with no network at all
-        # --network none is the real test of HF_HUB_OFFLINE: if anything still
-        # reached for the Hugging Face Hub at runtime, this step could not pass.
-        run: |
-          docker run --rm --network none ai-portfolio:ci python -c "
-          import search
-          model = search.load_model()
-          print('loaded', search.MODEL_NAME, 'at', search.MODEL_REVISION[:12])
-          print('embedding shape', model.encode(['portfolio'], normalize_embeddings=True).shape)
-          "
+        run: docker build -t ai-portfolio:ci .
 
       - name: Container starts and serves production configuration
         run: |
           docker run -d --name ci-check -p 8080:8080 ai-portfolio:ci
-          for i in $(seq 1 60); do
+          for i in $(seq 1 30); do
             curl -fsS -o /dev/null http://localhost:8080/ && break
-            sleep 2
+            sleep 1
           done
-          echo "--- homepage and API ---"
-          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/)" = "200"
-          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/blog)" = "200"
-          test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/search \
-            -H 'Content-Type: application/json' -d '{"query":"evaluation"}')" = "200"
+          status() { curl -sS -o /dev/null -w '%{http_code}' "$@"; }
+          echo "--- pages and the guide ---"
+          test "$(status http://localhost:8080/)" = "200"
+          test "$(status http://localhost:8080/blog)" = "200"
+          test "$(status -X POST http://localhost:8080/api/chat \
+            -H 'Content-Type: application/json' -d '{"message":"projects"}')" = "200"
           echo "--- production disables the interactive docs ---"
           for path in /docs /redoc /openapi.json; do
-            test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080$path)" = "404"
+            test "$(status http://localhost:8080$path)" = "404" || { echo "$path"; exit 1; }
           done
           echo "--- security headers are present ---"
           headers=$(curl -sS -D - -o /dev/null http://localhost:8080/)

@@ -11,7 +11,6 @@
 !security.py
 !content.py
 !blog.py
-!search.py
 
 # Dependencies, templates, static assets, and the articles
 !requirements.txt

@@ -4,28 +4,25 @@ Live portfolio: <https://keithgregory.vercel.app>
 
 Personal site for Keith Gregory: building, evaluating, and documenting AI
 systems across RAG and retrieval, agents and tool use, guardrails, and
-observability, with a growing focus on financial AI. It has three jobs:
+observability, with a growing focus on financial AI. It has two jobs:
 
-1. **Portfolio**. A fast technical overview: what has been built, how it was
-   evaluated, and where the evidence lives.
+1. **Portfolio**. A fast technical overview: what is being built, how it will
+   be evaluated, and where the evidence lives.
 2. **Blog**. Markdown articles with the detailed reasoning, failures, and
    lessons that do not fit on a project card.
-3. **Semantic search**. A working retrieval feature over the site's own
-   content, built with local embeddings.
 
 ## Architecture
 
 ```text
-FastAPI               routing, lifespan, JSON APIs           server.py
+FastAPI               routing, lifespan, JSON API            server.py
 Jinja2 templates      server-rendered pages                  templates/
 Vanilla HTML/CSS/JS   one stylesheet, one script, no build   assets/
 Markdown + YAML       blog articles with front matter        content/blog/
 Python data           canonical profile/projects/skills      content.py
-sentence-transformers semantic search over content + blog    search.py
 Starlette middleware  security headers, rate + size limits   security.py
 Environment settings  one variable: APP_ENV                  config.py
-pytest                route, blog, search, security tests    tests/
-Vercel function       CPU PyTorch + baked model, the host    vercel.json
+pytest                route, blog, content, security tests   tests/
+Vercel function       the host; FastAPI preset, no build     requirements.txt
 Container image       the same app, kept as a fallback       Dockerfile
 ```
 
@@ -35,10 +32,6 @@ Request flow:
   recent posts.
 - `GET /blog` and `GET /blog/{slug}` render posts loaded by `blog.py`.
   Unknown slugs return a real 404.
-- `POST /api/search` embeds the query with `all-MiniLM-L6-v2` and ranks
-  pre-computed chunk embeddings by cosine similarity. The index is built once
-  at startup from `content.py` **and every blog post**, so new articles are
-  searchable without touching Python.
 - `POST /api/chat` is a small scripted keyword responder ("Portfolio Guide").
   It is not an LLM and is labelled that way in the UI.
 
@@ -54,8 +47,7 @@ uvicorn server:app --reload --reload-include '*.md' --reload-include '*.html' --
 ```
 
 Open <http://localhost:3000>. The `--reload-include` flags make uvicorn
-restart when a blog post or template changes, not only Python files. The first start downloads the embedding model
-(~87 MB) into the Hugging Face cache; later starts take a few seconds.
+restart when a blog post or template changes, not only Python files.
 
 `APP_ENV` defaults to `development`, so `/docs`, `/redoc` and `/openapi.json`
 are available locally and no HSTS header is sent. See `.env.example`.
@@ -72,18 +64,15 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-The suite starts the app once (loading the model) and covers:
+The suite starts the app once and covers:
 
 - routes: homepage, blog index, article, 404s, static assets, navigation
 - blog: Markdown parsing, required front matter, invalid dates/slugs,
   duplicate slugs, related-project validation, ordering, reading time
-- search: response schema, ranking, de-duplication, blog/project content is
-  indexed, malformed requests return 422
 - content: no placeholder URLs in rendered pages, the profile exposes an exact
   set of fields, project definitions are consistent, guide labels are honest
-- boundaries: the app serves only its declared routes, pages link only to
-  approved destinations, and the search index is built only from approved
-  content sources
+- boundaries: the app serves only its declared routes, and pages link only
+  to approved destinations
 - security: the response headers, that the templates contain nothing the CSP
   forbids, that the interactive docs are development-only, and that the rate
   and body-size limits hold
@@ -103,7 +92,7 @@ Create `content/blog/<slug>.md`:
 title: "Evaluating Retrieval in the Knowledge Base Assistant"
 slug: "evaluating-retrieval"
 date: "2026-10-15"
-description: "One or two sentences shown in listings and search."
+description: "One or two sentences shown in listings."
 tags:
   - RAG
   - Evaluation
@@ -126,15 +115,15 @@ HTML is inserted into the page unescaped (`post.body_html | safe`), and
 python-markdown passes raw HTML through, so a `<script>` tag written into an
 article would run. That is the same trust already placed in `content.py` and
 the templates: committing to this repository is the trust boundary. Everything
-that *does* come from a visitor -- search queries and Portfolio Guide messages
--- is escaped, and the CSP blocks inline script regardless. If articles ever
+that *does* come from a visitor -- Portfolio Guide messages -- is escaped, and
+the CSP blocks inline script regardless. If articles ever
 come from somewhere else, that is the point to add a sanitizer.
 
-Posts and embeddings are loaded once at startup. With the run command above
+Posts are loaded once at startup. With the run command above
 the server restarts itself when a `.md` or `.html` file changes; without the
 `--reload-include` flags, restart it by hand after editing content.
 The article appears on `/blog`, on the homepage (if it is one of the three
-newest), in semantic search, and (when `related_project` is set) as an
+newest), and (when `related_project` is set) as an
 "Article" link on that project's card.
 
 ### Editing portfolio content
@@ -149,9 +138,8 @@ results. Projects are grouped by `category` into core and supporting work.
 
 This site is a portfolio, not a resume: `content.py` deliberately holds no
 employment history, meaning no employer names, job titles, dates, or duties. Anything
-added there is rendered publicly *and* embedded into the semantic search index,
-so it is retrievable by any visitor. Personal resume material is kept
-outside the repository entirely and is never served.
+added there is rendered publicly. Personal resume material is kept outside the
+repository entirely and is never served.
 
 ## Production
 
@@ -178,25 +166,19 @@ is only for your own shell and is never required.
   Also `nosniff`, `frame-ancestors 'none'` with `X-Frame-Options: DENY`,
   `strict-origin-when-cross-origin`, and a `Permissions-Policy` that denies
   every browser feature the site does not use.
-- **Rate limits** on the two POST endpoints, per client IP, in memory:
-  20/minute on `/api/search` (it runs embedding inference) and 40/minute on
-  `/api/chat` (keyword matching, cheaper). Over the limit is a `429` with
-  `Retry-After`, which the page reports as a rate limit rather than a
-  failure. Pages are never throttled. The counters live in the process, so
+- **Rate limit** on the POST endpoint, per client IP, in memory: 40/minute
+  on `/api/chat`. Over the limit is a `429` with `Retry-After`, which the
+  page reports as a rate limit rather than a failure. Pages are never
+  throttled. The counters live in the process, so
   each running instance enforces its own allowance. On a serverless platform
   that means the limit is per instance rather than global -- a deliberate
   trade-off, since a shared counter would mean a Redis this site does not
   otherwise need. It still bounds what one client can drive on the instance
-  serving it, which is what protects the inference.
-- **Request bounds.** Both endpoints take one string of at most 500
+  serving it.
+- **Request bounds.** The endpoint takes one string of at most 500
   characters. A body over 16 KB is refused with `413` before it is read.
   Empty, blank, wrong-typed, over-long and malformed-JSON bodies all return
   `422`. The platform caps a request body at 4.5 MB before the app sees it.
-- **A pinned model.** `search.py` names the model in full and pins it to one
-  commit of its Hugging Face repository, with `trust_remote_code` off so no
-  code from that repository is ever executed. The weights are downloaded into
-  the image at build time, so a running container needs no network access
-  (`HF_HUB_OFFLINE=1`) and a cold start does not wait on a download.
 
 ## Deployment
 
@@ -209,27 +191,16 @@ second runtime: a request is served by the app, on Vercel, and nowhere else.
 | Entry point | `server.py`, whose `app` Vercel's Python runtime loads directly |
 | Runtime | Python 3.12 (`.python-version`), Fluid compute, region `iad1` |
 | CPU / memory | 1 vCPU, 2 GB |
-| Max duration | 300 s, which the slowest cold search uses about 5% of |
 | Instances | scale to zero when idle |
-| Environment | `APP_ENV=production`, `HF_HUB_OFFLINE=1` (set on the project) |
-| Persistent disk | none; the bundle carries the model |
+| Environment | `APP_ENV=production` (set on the project) |
+| Persistent disk | none, and none needed |
 
-Two things in `vercel.json` do the work the `Dockerfile` does for a container:
-
-- `installCommand` pins the **CPU build of PyTorch** from PyTorch's own index.
-  The default PyPI wheel brings roughly 2 GB of CUDA libraries that no
-  function can use, and would not fit in any case.
-- `buildCommand` runs `vercel_build.py`, which **bakes the pinned model into
-  the bundle**. A function's filesystem is read-only apart from `/tmp`, and
-  `/tmp` does not survive between instances, so the weights have to be
-  written at build time. The script also flattens the Hugging Face cache's
-  symlinks -- they do not survive bundling -- and refuses to finish unless the
-  result loads again with `HF_HUB_OFFLINE=1` in a fresh interpreter.
-
-Dependencies and weights come to about 1.4 GB unpacked, past the 500 MB
-standard limit for a Python function, so Vercel places it on the large-function
-path automatically. CI installs the same CPU wheel and runs the same build
-script, so tests run against what production runs.
+There is no `vercel.json` and no build step. The project uses Vercel's
+FastAPI preset, which installs `requirements.txt` and loads `server.py`.
+CI does the same in a clean environment, checks that the installed
+dependencies stay inside Vercel's standard 500 MB function size, and starts
+the app in its production configuration, so a deploy-time failure shows up
+as a red build first.
 
 Static assets live in `assets/`, not `public/`: Vercel treats a root-level
 `public/` as a CDN directory, and CDN-served files bypass the application --
@@ -277,5 +248,5 @@ variant still returns `429`.
 
 The site deliberately avoids frameworks, build tooling, and services it does
 not need. A FastAPI app, a few templates, one stylesheet, one script, and
-Markdown files are enough to render pages, publish articles, and run semantic
-search. They are also easy for another engineer to read in one sitting.
+Markdown files are enough to render pages and publish articles. They are also
+easy for another engineer to read in one sitting.

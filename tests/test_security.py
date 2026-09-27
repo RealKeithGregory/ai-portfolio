@@ -1,5 +1,5 @@
 """Production hardening: response headers, environment-aware API docs, and
-the guards on the two POST endpoints.
+the guards on the POST endpoint.
 
 The CSP tests come in pairs. One asserts the policy itself, the other asserts
 that the templates still obey it -- a policy that forbids inline script is
@@ -63,7 +63,7 @@ def test_every_response_carries_the_security_headers(client, path):
 
 
 def test_api_responses_carry_the_security_headers(client):
-    headers = client.post("/api/search", json={"query": "evaluation"}).headers
+    headers = client.post("/api/chat", json={"message": "evaluation"}).headers
     for name in EXPECTED_HEADERS:
         assert name.lower() in headers
 
@@ -161,22 +161,19 @@ def test_production_is_never_the_default():
 
 
 # ─── RATE LIMITING ────────────────────────────────────────────────────────────
-def test_configured_limits_cover_both_post_endpoints():
-    assert set(security.RATE_LIMITS) == {"/api/search", "/api/chat"}
-    search_limit, search_window = security.RATE_LIMITS["/api/search"]
-    chat_limit, _ = security.RATE_LIMITS["/api/chat"]
-    # Search runs embedding inference, so it is the tighter of the two.
-    assert search_limit < chat_limit
-    assert search_window == 60
+def test_configured_limits_cover_the_post_endpoint():
+    assert set(security.RATE_LIMITS) == {"/api/chat"}
+    _, window = security.RATE_LIMITS["/api/chat"]
+    assert window == 60
 
 
-def test_search_returns_429_once_the_limit_is_reached(client, monkeypatch):
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (3, 60))
+def test_chat_returns_429_once_the_limit_is_reached(client, monkeypatch):
+    monkeypatch.setitem(server.api_limiter.limits, "/api/chat", (3, 60))
     server.api_limiter.reset()
     for _ in range(3):
-        assert client.post("/api/search", json={"query": "evaluation"}).status_code == 200
+        assert client.post("/api/chat", json={"message": "evaluation"}).status_code == 200
 
-    limited = client.post("/api/search", json={"query": "evaluation"})
+    limited = client.post("/api/chat", json={"message": "evaluation"})
     assert limited.status_code == 429
     assert int(limited.headers["retry-after"]) >= 1
     assert "rate limited" in limited.json()["detail"]
@@ -184,27 +181,26 @@ def test_search_returns_429_once_the_limit_is_reached(client, monkeypatch):
 
 def test_rate_limited_response_still_carries_security_headers(client, monkeypatch):
     """The guard answers before the route, so it must sit inside the headers."""
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
+    monkeypatch.setitem(server.api_limiter.limits, "/api/chat", (1, 60))
     server.api_limiter.reset()
-    client.post("/api/search", json={"query": "evaluation"})
-    limited = client.post("/api/search", json={"query": "evaluation"})
+    client.post("/api/chat", json={"message": "evaluation"})
+    limited = client.post("/api/chat", json={"message": "evaluation"})
     assert limited.status_code == 429
     for name in EXPECTED_HEADERS:
         assert name.lower() in limited.headers
 
 
-def test_each_endpoint_has_its_own_allowance(client, monkeypatch):
-    """Exhausting search must not lock a visitor out of the guide."""
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
-    server.api_limiter.reset()
-    client.post("/api/search", json={"query": "evaluation"})
-    assert client.post("/api/search", json={"query": "evaluation"}).status_code == 429
-    assert client.post("/api/chat", json={"message": "projects"}).status_code == 200
+def test_limiter_counts_each_path_separately():
+    """Exhausting one limited path must not lock a visitor out of another."""
+    limiter = security.RateLimiter({"/api/a": (1, 60), "/api/b": (1, 60)})
+    assert limiter.retry_after("/api/a", "1.2.3.4", now=1000) is None
+    assert limiter.retry_after("/api/a", "1.2.3.4", now=1000) is not None
+    assert limiter.retry_after("/api/b", "1.2.3.4", now=1000) is None
 
 
 def test_pages_are_never_rate_limited(client, monkeypatch):
     """Reading the site is not an expensive operation and is not throttled."""
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
+    monkeypatch.setitem(server.api_limiter.limits, "/api/chat", (1, 60))
     server.api_limiter.reset()
     for _ in range(30):
         assert client.get("/").status_code == 200
@@ -212,50 +208,48 @@ def test_pages_are_never_rate_limited(client, monkeypatch):
 
 def test_limiter_window_slides():
     """An allowance comes back once its window has passed."""
-    limiter = security.RateLimiter({"/api/search": (2, 60)})
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1000) is None
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1001) is None
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1002) is not None
+    limiter = security.RateLimiter({"/api/chat": (2, 60)})
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1000) is None
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1001) is None
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1002) is not None
     # Still blocked just before the first request ages out, free just after.
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1059) is not None
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1061) is None
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1059) is not None
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1061) is None
 
 
 def test_limiter_counts_each_client_separately():
-    limiter = security.RateLimiter({"/api/search": (1, 60)})
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1000) is None
-    assert limiter.retry_after("/api/search", "1.2.3.4", now=1000) is not None
-    assert limiter.retry_after("/api/search", "5.6.7.8", now=1000) is None
+    limiter = security.RateLimiter({"/api/chat": (1, 60)})
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1000) is None
+    assert limiter.retry_after("/api/chat", "1.2.3.4", now=1000) is not None
+    assert limiter.retry_after("/api/chat", "5.6.7.8", now=1000) is None
 
 
 def test_limiter_ignores_unlisted_paths():
-    limiter = security.RateLimiter({"/api/search": (1, 60)})
+    limiter = security.RateLimiter({"/api/chat": (1, 60)})
     for _ in range(100):
         assert limiter.retry_after("/", "1.2.3.4", now=1000) is None
 
 
 def test_limiter_does_not_grow_without_bound():
     """Counters for clients that have gone away must be reclaimed."""
-    limiter = security.RateLimiter({"/api/search": (5, 60)})
+    limiter = security.RateLimiter({"/api/chat": (5, 60)})
     for i in range(security.MAX_TRACKED_CLIENTS + 500):
-        limiter.retry_after("/api/search", f"10.0.{i // 256}.{i % 256}", now=1000 + i)
+        limiter.retry_after("/api/chat", f"10.0.{i // 256}.{i % 256}", now=1000 + i)
     assert len(limiter._hits) <= security.MAX_TRACKED_CLIENTS
 
 
 # ─── REQUEST BODY SIZE ────────────────────────────────────────────────────────
-@pytest.mark.parametrize("path, field", [("/api/search", "query"), ("/api/chat", "message")])
-def test_oversized_body_is_refused_before_it_is_read(client, path, field):
-    oversized = {field: "x" * (security.MAX_BODY_BYTES + 1024)}
-    response = client.post(path, json=oversized)
+def test_oversized_body_is_refused_before_it_is_read(client):
+    oversized = {"message": "x" * (security.MAX_BODY_BYTES + 1024)}
+    response = client.post("/api/chat", json=oversized)
     assert response.status_code == 413
     assert "under" in response.json()["detail"]
 
 
-@pytest.mark.parametrize("path, field", [("/api/search", "query"), ("/api/chat", "message")])
-def test_bodies_within_the_limit_are_still_validated_normally(client, path, field):
+def test_bodies_within_the_limit_are_still_validated_normally(client):
     """Between the 500-character field limit and the body limit, the field
     validator is what rejects the request -- with a 422, not a 413."""
-    assert client.post(path, json={field: "x" * 501}).status_code == 422
+    assert client.post("/api/chat", json={"message": "x" * 501}).status_code == 422
 
 
 # ─── CLIENT IDENTITY BEHIND A PROXY ───────────────────────────────────────────
@@ -322,16 +316,16 @@ def test_ipv4_is_counted_per_address():
 
 
 def test_rotating_inside_an_ipv6_prefix_does_not_reset_the_limit(client, monkeypatch):
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (2, 60))
+    monkeypatch.setitem(server.api_limiter.limits, "/api/chat", (2, 60))
     server.api_limiter.reset()
     for host in ["2001:db8:1:2::1", "2001:db8:1:2::2"]:
-        sent = client.post("/api/search", json={"query": "x"},
+        sent = client.post("/api/chat", json={"message": "x"},
                            headers={"X-Forwarded-For": host})
         assert sent.status_code == 200
-    blocked = client.post("/api/search", json={"query": "x"},
+    blocked = client.post("/api/chat", json={"message": "x"},
                           headers={"X-Forwarded-For": "2001:db8:1:2:aaaa:bbbb:cccc:dddd"})
     assert blocked.status_code == 429, "rotating within the /64 bought another request"
-    elsewhere = client.post("/api/search", json={"query": "x"},
+    elsewhere = client.post("/api/chat", json={"message": "x"},
                             headers={"X-Forwarded-For": "2001:db8:1:3::1"})
     assert elsewhere.status_code == 200, "a different /64 must keep its own allowance"
 
@@ -357,15 +351,15 @@ def as_proxied(forged=None):
 
 def test_spoofed_header_cannot_bypass_the_rate_limit(client, monkeypatch):
     """The whole point: rotating X-Forwarded-For must not buy more requests."""
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (2, 60))
+    monkeypatch.setitem(server.api_limiter.limits, "/api/chat", (2, 60))
     server.api_limiter.reset()
     for _ in range(2):
-        sent = client.post("/api/search", json={"query": "x"}, headers=as_proxied())
+        sent = client.post("/api/chat", json={"message": "x"}, headers=as_proxied())
         assert sent.status_code == 200
 
     for forged in ["9.9.9.9", "1.2.3.4", "203.0.113.99, 8.8.8.8", "not-an-ip"]:
         blocked = client.post(
-            "/api/search", json={"query": "x"}, headers=as_proxied(forged)
+            "/api/chat", json={"message": "x"}, headers=as_proxied(forged)
         )
         assert blocked.status_code == 429, f"{forged!r} bought another request"
 
@@ -373,16 +367,16 @@ def test_spoofed_header_cannot_bypass_the_rate_limit(client, monkeypatch):
 def test_a_different_visitor_still_gets_their_own_allowance(client, monkeypatch):
     """Keying on the appended entry must not collapse everyone into one
     bucket -- that would rate limit the whole internet together."""
-    monkeypatch.setitem(server.api_limiter.limits, "/api/search", (1, 60))
+    monkeypatch.setitem(server.api_limiter.limits, "/api/chat", (1, 60))
     server.api_limiter.reset()
-    first = client.post("/api/search", json={"query": "x"}, headers=as_proxied())
+    first = client.post("/api/chat", json={"message": "x"}, headers=as_proxied())
     assert first.status_code == 200
     assert client.post(
-        "/api/search", json={"query": "x"}, headers=as_proxied()
+        "/api/chat", json={"message": "x"}, headers=as_proxied()
     ).status_code == 429
 
     other = client.post(
-        "/api/search", json={"query": "x"}, headers={"X-Forwarded-For": "198.51.100.4"}
+        "/api/chat", json={"message": "x"}, headers={"X-Forwarded-For": "198.51.100.4"}
     )
     assert other.status_code == 200
 
