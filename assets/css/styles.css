@@ -19,6 +19,7 @@
   --font-head: 'Syne', sans-serif;
   --font-mono: 'Space Mono', monospace;
   --radius:    12px;
+  --panel-radius: 20px;   /* card surfaces: post, skill and contact cards */
   --glow:      0 0 30px rgba(0,255,180,0.15);
 }
 
@@ -426,22 +427,44 @@ nav {
   border-radius: 3px;
 }
 
+/* ─── CARD SURFACES ─────────────────────────────────────────── */
+/* Post, skill and contact cards share the contact card's surface. Only the
+   padding and the strength of the glow differ, so Contact stays the
+   strongest panel on the page. */
+.post-card,
+.skill-group,
+.contact-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+}
+
+.post-card::before,
+.skill-group::before,
+.contact-card::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(0,255,180,0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  /* Decoration only: it must never sit over a link and take its clicks. */
+  pointer-events: none;
+}
+
+.post-card::before,
+.skill-group::before { opacity: 0.5; }
+
 /* ─── SKILLS ────────────────────────────────────────────────── */
 .skills-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
 
-.skill-group {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  transition: border-color 0.3s;
-}
-
-.skill-group:hover { border-color: rgba(0,255,180,0.35); }
+/* No hover state: nothing inside a skill card is clickable. */
+.skill-group { padding: 32px 28px; }
 
 .skill-group h3 {
   font-family: var(--font-head);
@@ -497,21 +520,17 @@ nav {
 
 .log-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
 .post-card {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 28px;
   transition: border-color 0.2s;
 }
 
 .post-card:hover { border-color: rgba(0,255,180,0.3); }
-
-.post-card { display: flex; flex-direction: column; }
 
 .post-card .log-title a {
   color: inherit;
@@ -541,7 +560,6 @@ nav {
 
 .post-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
 }
 
@@ -709,23 +727,9 @@ nav {
 }
 
 .contact-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
   padding: 64px 40px;
   max-width: 640px;
   margin: 0 auto;
-  position: relative;
-  overflow: hidden;
-}
-
-.contact-card::before {
-  content: '';
-  position: absolute;
-  top: -60px; right: -60px;
-  width: 200px; height: 200px;
-  background: radial-gradient(circle, rgba(0,255,180,0.08) 0%, transparent 70%);
-  border-radius: 50%;
 }
 
 .contact-links {
@@ -816,7 +820,6 @@ footer span { color: var(--green); }
   .container { padding: 0 20px; }
   section { padding: 72px 0; }
   .hero-inner { grid-template-columns: 1fr; gap: 40px; }
-  .log-grid { grid-template-columns: 1fr; }
   .article, .page-header { padding-top: 110px; }
 
   /* Mobile navigation: toggle button reveals a stacked menu */
@@ -846,6 +849,8 @@ footer span { color: var(--green); }
 
   /* The card no longer needs desktop-sized padding at this width. */
   .contact-card { padding: 36px 22px; }
+  .post-card,
+  .skill-group { padding: 24px 20px; }
   .contact-link { width: 100%; justify-content: center; }
 
   .hero-ctas { flex-direction: column; align-items: stretch; }
@@ -923,17 +928,20 @@ footer span { color: var(--green); }
   margin-inline: auto;
 }
 
-/* ─── Blog previews: homepage section and the /blog listing ─── */
+/* ─── Card grids: blog previews and the Skills pair ─── */
 
-/* auto-fit collapses empty tracks, so a single card centres under the
-   centred heading instead of sitting in the left column. min(320px, 100%)
-   keeps the track from overflowing a narrow phone. */
+/* auto-fit collapses empty tracks, so the cards centre as a group under the
+   centred heading instead of filling columns from the left. Tracks stop at
+   420px so a pair never stretches across the page, and min(320px, 100%)
+   keeps a track from overflowing a narrow phone. */
 .centered-page .log-grid,
-.centered-page .post-list {
+.centered-page .post-list,
+.centered-page .skills-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 420px));
   justify-content: center;
 }
 
+/* ─── Blog previews: homepage section and the /blog listing ─── */
 .centered-page .post-card { text-align: center; }
 
 .centered-page .post-card .log-text {
