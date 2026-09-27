@@ -23,7 +23,6 @@ Starlette middleware  security headers                       security.py
 Environment settings  one variable: APP_ENV                  config.py
 pytest                route, blog, content, security tests   tests/
 Vercel function       the host; FastAPI preset, no build     requirements.txt
-Container image       the same app, kept as a fallback       Dockerfile
 ```
 
 Request flow:
@@ -148,8 +147,7 @@ One environment variable decides the difference, and it is never set locally:
 | `Strict-Transport-Security` | not sent | sent, one year |
 | everything else | identical | identical |
 
-Set on the Vercel project, and in the `Dockerfile` for the container build;
-`.env.example` lists it. The app reads real environment variables, so `.env`
+Set on the Vercel project; `.env.example` lists it. The app reads real environment variables, so `.env`
 is only for your own shell and is never required.
 
 ### What the app defends itself with
@@ -193,13 +191,6 @@ Static assets live in `assets/`, not `public/`: Vercel treats a root-level
 `public/` as a CDN directory, and CDN-served files bypass the application --
 which would mean serving the stylesheet and the script without the security
 headers described above.
-
-### The container, and why it is still here
-
-`Dockerfile` builds the same application for Google Cloud Run, which hosted
-the site before this and is kept idle as a temporary rollback target. CI
-still builds and starts that image on every push, so the fallback cannot rot
-unnoticed.
 
 ## Philosophy
 

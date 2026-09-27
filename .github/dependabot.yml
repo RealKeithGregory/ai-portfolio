@@ -2,9 +2,9 @@
 #
 # The requirements files pin exact versions on purpose, so nothing here
 # loosens them: Dependabot opens a pull request proposing a new pin, and that
-# pull request has to pass the same CI as any other change -- the tests, the
-# Vercel package check and the production image build included. Nothing
-# merges on its own; every update is reviewed and merged by hand.
+# pull request has to pass the same CI as any other change -- the tests and
+# the Vercel package check included. Nothing merges on its own; every update
+# is reviewed and merged by hand.
 version: 2
 updates:
   - package-ecosystem: "pip"

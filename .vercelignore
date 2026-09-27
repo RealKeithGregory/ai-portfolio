@@ -3,10 +3,9 @@
 # Vercel runs the application itself: FastAPI, the templates, the articles,
 # and the static assets. Nothing else in this repository belongs there.
 #
-# Default-deny, matching .gcloudignore and .dockerignore: nothing is
-# uploaded unless it is named here. That way a new private file alongside
-# this repository is never sent by accident, and no private path has to be
-# named in this public file.
+# Default-deny: nothing is uploaded unless it is named here. That way a new
+# private file alongside this repository is never sent by accident, and no
+# private path has to be named in this public file.
 #
 # Git-triggered deployments do not use this file -- they build from the
 # repository, which contains none of those private directories in the first
