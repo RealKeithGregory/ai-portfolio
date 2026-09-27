@@ -7,6 +7,7 @@ tags:
   - AI Engineering
   - AI Reliability
   - Career
+social_subtitle: "From software quality to reliable AI systems."
 github_url:
 ---
 

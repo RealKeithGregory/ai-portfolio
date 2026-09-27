@@ -1,0 +1,7 @@
+# Local publishing tools, on top of the pinned runtime set.
+#
+# Neither CI nor Vercel installs this file. tools/make_social_card.py renders
+# social-card PNGs in a headless browser; after installing, download the
+# browser once with:  playwright install chromium
+-r requirements.txt
+playwright==1.63.0

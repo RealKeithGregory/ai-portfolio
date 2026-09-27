@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- The one social-card layout, rendered to a 1200×630 PNG by
+     make_social_card.py. Colours and fonts are copied from the :root tokens
+     in assets/css/styles.css so a shared link looks like the site. -->
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@800&display=block" rel="stylesheet">
+<style>
+  :root {
+    --bg:             #080c10;
+    --green:          #00ffb4;
+    --text-secondary: #9fb3c4;
+    --text-dim:       #93a8b8;
+    --white:          #f0f8ff;
+    --font-head:      'Syne', sans-serif;
+    --font-mono:      'Space Mono', monospace;
+    --subtitle-gap:     28px;
+    --subtitle-size:    27px;
+    --subtitle-leading: 1.45;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body { width: 1200px; height: 630px; background: var(--bg); }
+
+  .card {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    /* Wide margins keep text clear of X's 2:1 crop and its domain overlay. */
+    padding: 72px 88px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background:
+      radial-gradient(ellipse 60% 70% at 100% 0%, rgba(0,255,180,0.09), transparent 70%),
+      var(--bg);
+  }
+
+  /* The site's neural-net background, frozen. Faded out towards the left so
+     it never sits behind the title. */
+  .motif {
+    position: absolute;
+    inset: 0;
+    -webkit-mask-image: linear-gradient(to right, transparent 55%, black 88%);
+            mask-image: linear-gradient(to right, transparent 55%, black 88%);
+  }
+
+  .brand, .content { position: relative; }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+  }
+
+  .mark {
+    font-family: var(--font-head);
+    font-weight: 800;
+    font-size: 34px;
+    letter-spacing: -0.02em;
+    color: var(--green);
+  }
+
+  .mark span { color: var(--white); }
+
+  .name {
+    font-family: var(--font-mono);
+    font-size: 19px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .content { max-width: 920px; }
+
+  /* Without a subtitle, keep the space a one-line subtitle would take, so the
+     title sits at the same height on every card instead of dropping lower. */
+  .content.no-subtitle {
+    padding-bottom: calc(var(--subtitle-gap) + var(--subtitle-size) * var(--subtitle-leading));
+  }
+
+  /* Same shape as .hero-label on the site: a short rule, then the label. */
+  .label {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 26px;
+    font-family: var(--font-mono);
+    font-size: 20px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green);
+  }
+
+  .label::before {
+    content: '';
+    width: 44px;
+    height: 2px;
+    background: var(--green);
+  }
+
+  .title {
+    font-family: var(--font-head);
+    font-weight: 800;
+    font-size: 80px;
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+    color: var(--white);
+    text-wrap: balance;
+  }
+
+  .subtitle {
+    margin-top: var(--subtitle-gap);
+    font-family: var(--font-mono);
+    font-size: var(--subtitle-size);
+    line-height: var(--subtitle-leading);
+    color: var(--text-secondary);
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <svg class="motif" width="1200" height="630" viewBox="0 0 1200 630" aria-hidden="true">
+    {% for link in links %}
+    <line x1="{{ link.x1 }}" y1="{{ link.y1 }}" x2="{{ link.x2 }}" y2="{{ link.y2 }}"
+          stroke="#00ffb4" stroke-opacity="{{ link.opacity }}" stroke-width="1.2"/>
+    {% endfor %}
+    {% for node in nodes %}
+    <circle cx="{{ node.x }}" cy="{{ node.y }}" r="{{ node.r }}" fill="#00ffb4" fill-opacity="0.7"/>
+    {% endfor %}
+  </svg>
+
+  <div class="brand">
+    <span class="mark">K<span>.</span>G</span>
+    <span class="name">{{ name }}</span>
+  </div>
+
+  <div class="content{% if not subtitle %} no-subtitle{% endif %}">
+    {% if label %}<p class="label">{{ label }}</p>{% endif %}
+    <h1 class="title">{{ title }}</h1>
+    {% if subtitle %}<p class="subtitle">{{ subtitle }}</p>{% endif %}
+  </div>
+</div>
+</body>
+</html>
