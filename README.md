@@ -167,8 +167,12 @@ is only for your own shell and is never required.
 
 ## Deployment
 
-Vercel, which runs the FastAPI application itself. There is no proxy and no
-second runtime: a request is served by the app, on Vercel, and nowhere else.
+```text
+Visitor → Vercel → FastAPI portfolio
+```
+
+Vercel runs the FastAPI application itself. There is no proxy and no second
+runtime: a request is served by the app, on Vercel, and nowhere else.
 
 | | |
 |---|---|
