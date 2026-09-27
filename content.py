@@ -19,8 +19,8 @@ PROFILE = {
     "tagline": "AI Engineering · Evaluation & Reliability · RAG · Agents",
     # Short hero statement. Emphasis markers (*...*) are rendered as highlights.
     "summary": (
-        "I am working toward *AI systems that are measured, not just "
-        "demonstrated*: RAG and retrieval, agentic systems and tool use, "
+        "I am learning to build *AI systems that are measured, not just "
+        "demonstrated*: RAG & retrieval, agentic systems & tool use, "
         "guardrails, and observability, with a growing interest in *financial "
         "AI*. The writing below documents what I am learning and building."
     ),
